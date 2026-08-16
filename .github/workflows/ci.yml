@@ -20,3 +20,24 @@ jobs:
         with:
           name: sya-function-scheduler-linux-x64
           path: dist/sya-function-scheduler-*-linux-x64.tar.gz
+
+  macos-desktop:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+      - run: npm test
+      - run: npm run app:dist:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sya-scheduler-macos-${{ runner.arch }}
+          path: |
+            release/*.dmg
+            release/*.zip

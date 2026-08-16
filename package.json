@@ -2,9 +2,49 @@
   "name": "@sya/function-scheduler",
   "version": "0.1.0",
   "private": true,
-  "description": "SYA scheduler function runtime.",
+  "description": "SYA scheduler function runtime and standalone macOS desktop app.",
+  "author": "Save Your Attention",
+  "main": "desktop/main.cjs",
   "scripts": {
     "build": "scripts/package-runtime.sh current",
-    "test": "scripts/smoke-test.sh"
+    "test": "scripts/smoke-test.sh && npm run test:desktop-shell",
+    "test:desktop-shell": "node --check desktop/main.cjs && node --check desktop/after-pack.cjs",
+    "app:dev": "electron .",
+    "app:runtime": "scripts/build-desktop-runtime.sh",
+    "app:pack:mac": "npm run app:runtime && electron-builder --mac --dir --publish=never",
+    "app:dist:mac": "npm run app:runtime && electron-builder --mac --publish=never"
+  },
+  "devDependencies": {
+    "electron": "42.3.3",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.saveyourattention.scheduler",
+    "productName": "SYA Scheduler",
+    "artifactName": "SYA-Scheduler-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop-runtime/scheduler-server",
+        "to": "scheduler-runtime/scheduler-server"
+      }
+    ],
+    "asar": true,
+    "afterPack": "desktop/after-pack.cjs",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null,
+      "hardenedRuntime": false
+    }
   }
 }

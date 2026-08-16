@@ -1,6 +1,7 @@
 .DS_Store
 Thumbs.db
 .vscode/
+node_modules/
 /UI.png
 /前端.png
 /原来的网页界面.png
@@ -33,6 +34,9 @@ htmlcov/
 
 dist/
 build/
+release/
+desktop-runtime/
+.desktop-build/
 *.egg-info/
 
 app/function-runtime/

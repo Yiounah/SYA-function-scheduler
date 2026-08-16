@@ -1,7 +1,13 @@
 # Scheduler Function
 
-Standalone SYA scheduler function module with cognitive task decomposition and
-rolling-wave planning. In the parent app this repo is intended to be linked as:
+SYA scheduler function module with cognitive task decomposition and rolling-wave
+planning. The same repository supports two entry modes:
+
+- Git submodule and local HTTP function runtime inside `SYA-UI`.
+- Standalone `SYA Scheduler.app` on macOS, with the existing browser dashboard
+  hosted inside an Electron window.
+
+In the parent app this repo is linked as:
 
 ```text
 function/scheduler
@@ -15,6 +21,11 @@ function/scheduler
 - Rolling-wave replanning that replaces pending work while preserving completed
   task history.
 - Local debug page and legacy `/api/v1/tasks/*` endpoints for backend testing.
+- Standalone macOS desktop shell with a bundled Python runtime.
+
+For an implementation-grounded list of everything the module currently does,
+including current data and API constraints, see
+[`docs/CURRENT_FUNCTIONALITY.md`](docs/CURRENT_FUNCTIONALITY.md).
 
 ## Required SYA Files
 
@@ -93,6 +104,36 @@ Open `http://127.0.0.1:8000` for the debug dashboard.
 No LLM key is required for local tests. Without `SYA_OPENAI_API_KEY`, the
 runtime uses deterministic mock plans.
 
+## Standalone macOS App
+
+Development mode uses the same FastAPI runtime and dashboard as the submodule:
+
+```bash
+npm install
+python3.11 -m venv sya_task_scheduler/.venv
+source sya_task_scheduler/.venv/bin/activate
+pip install -r sya_task_scheduler/requirements.txt
+npm run app:dev
+```
+
+Use any Python 3.11 or newer interpreter in place of `python3.11`. The Electron
+main process allocates a localhost port, starts `bin/scheduler-server`, waits
+for `/health`, and opens the dashboard. Runtime output is written to
+`~/Library/Logs/SYA Scheduler/scheduler-runtime.log`.
+
+Build an installable app for the current Mac architecture:
+
+```bash
+npm install
+npm run app:dist:mac
+```
+
+The packaging command uses PyInstaller to produce a self-contained Scheduler
+server and then embeds it in the Electron app. The generated `.dmg` and `.zip`
+are written to `release/`; the installed app does not require a separate Python
+installation. The local build is not Developer ID signed or notarized, so
+macOS may require an explicit first-open confirmation.
+
 ## Build Artifact
 
 ```bash
@@ -106,8 +147,10 @@ dist/sya-function-scheduler-0.1.0-<target>.tar.gz
 ```
 
 The archive contains the files required by the SYA Electron function runtime.
-It is a Python launcher artifact for integration testing; a production release
-can later replace `bin/scheduler-server` with a bundled executable.
+This function archive uses the Python launcher in `bin/scheduler-server`, so the
+host must provide Python 3.11+ and the dependencies in
+`sya_task_scheduler/requirements.txt`. The standalone macOS package described
+above embeds its own executable runtime and has no such host-Python dependency.
 
 ## Parent Repo Integration
 
