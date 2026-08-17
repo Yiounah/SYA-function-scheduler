@@ -32,6 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - run: python -m pip install -r sya_task_scheduler/requirements.txt
       - run: npm ci
       - run: npm test
       - run: npm run app:dist:mac
