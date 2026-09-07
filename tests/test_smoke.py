@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import os
 import unittest
 
+os.environ["SYA_OPENAI_API_KEY"] = ""
+
 from fastapi.testclient import TestClient
+
+from app.config import get_settings
+
+get_settings.cache_clear()
 
 from app.main import app
 
@@ -19,7 +26,7 @@ def walk_leaves(node: dict) -> list[dict]:
     return leaves
 
 
-class SchedulerSmokeTests(unittest.TestCase):
+class FocusFlowAppTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client_ctx = TestClient(app)
         self.client = self.client_ctx.__enter__()
@@ -29,6 +36,21 @@ class SchedulerSmokeTests(unittest.TestCase):
 
     def _drain_events(self) -> None:
         self.client.portal.call(self.client.app.state.container.event_bus.join)
+
+    def test_health(self) -> None:
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["data"]["functionId"], "scheduler")
+
+    def test_app_ui_is_served(self) -> None:
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers["content-type"])
+        self.assertIn("FocusFlow Planner", response.text)
+        self.assertIn("长程目标", response.text)
+        self.assertNotIn("Live Event Stream", response.text)
 
     def test_init_creates_task_tree(self) -> None:
         response = self.client.post(
@@ -45,76 +67,6 @@ class SchedulerSmokeTests(unittest.TestCase):
         leaves = walk_leaves(tree)
         self.assertGreaterEqual(len(leaves), 1)
         self.assertTrue(all(leaf["status"] == "PENDING" for leaf in leaves))
-
-    def test_frontend_shell_is_served(self) -> None:
-        response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("FocusFlow Planner", response.text)
-
-    def test_function_manifest_and_health(self) -> None:
-        health_response = self.client.get("/health")
-        self.assertEqual(health_response.status_code, 200)
-        health = health_response.json()
-        self.assertTrue(health["ok"])
-        self.assertEqual(health["data"]["functionId"], "scheduler")
-
-        manifest_response = self.client.get("/manifest")
-        self.assertEqual(manifest_response.status_code, 200)
-        manifest = manifest_response.json()
-        self.assertEqual(manifest["id"], "scheduler")
-        self.assertEqual(manifest["runtime"], "local-http")
-
-    def test_scheduler_endpoints_are_empty_before_init(self) -> None:
-        response = self.client.get("/api/scheduler/tasks")
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["data"], [])
-
-        timeline_response = self.client.get("/api/scheduler/timeline")
-        self.assertEqual(timeline_response.status_code, 200)
-        timeline = timeline_response.json()
-        self.assertTrue(timeline["ok"])
-        self.assertEqual(timeline["data"]["events"], [])
-
-    def test_scheduler_decompose_creates_tasks_and_timeline(self) -> None:
-        response = self.client.post(
-            "/api/scheduler/decompose",
-            json={"input": "Build an AI scheduling backend", "attachments": []},
-        )
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertTrue(payload["ok"])
-        self.assertGreaterEqual(len(payload["data"]["tasks"]), 1)
-        self.assertGreaterEqual(len(payload["data"]["timeline"]), 1)
-
-        tasks_response = self.client.get("/api/scheduler/tasks")
-        self.assertEqual(tasks_response.status_code, 200)
-        tasks_payload = tasks_response.json()
-        self.assertTrue(tasks_payload["ok"])
-        self.assertGreaterEqual(len(tasks_payload["data"]), 1)
-
-    def test_scheduler_task_update_and_stats(self) -> None:
-        self.client.post(
-            "/api/scheduler/decompose",
-            json={"input": "Build an AI scheduling backend", "attachments": []},
-        )
-        tasks = self.client.get("/api/scheduler/tasks").json()["data"]
-        first_leaf = next(task for task in tasks if not task["subtasks"])
-
-        response = self.client.put(
-            f"/api/scheduler/tasks/{first_leaf['id']}",
-            json={"status": "completed", "actualMinutes": 30},
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["ok"])
-
-        stats_response = self.client.get("/api/scheduler/stats")
-        self.assertEqual(stats_response.status_code, 200)
-        stats = stats_response.json()
-        self.assertTrue(stats["ok"])
-        self.assertGreaterEqual(stats["data"]["completedCount"], 1)
 
     def test_status_updates_and_replan_flow(self) -> None:
         self.client.post(

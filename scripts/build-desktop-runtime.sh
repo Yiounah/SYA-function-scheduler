@@ -28,7 +28,7 @@ if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
 fi
 
 "${VENV_DIR}/bin/python" -m pip install --disable-pip-version-check \
-  -r "${ROOT_DIR}/sya_task_scheduler/requirements.txt" \
+  -r "${ROOT_DIR}/requirements.txt" \
   'pyinstaller>=6.11,<7'
 
 "${VENV_DIR}/bin/pyinstaller" \
@@ -36,8 +36,8 @@ fi
   --clean \
   --onefile \
   --name scheduler-server \
-  --paths "${ROOT_DIR}/sya_task_scheduler" \
-  --add-data "${ROOT_DIR}/sya_task_scheduler/app/static:app/static" \
+  --paths "${ROOT_DIR}" \
+  --add-data "${ROOT_DIR}/app/static:app/static" \
   --distpath "${BUILD_DIR}/dist" \
   --workpath "${BUILD_DIR}/work" \
   --specpath "${BUILD_DIR}" \

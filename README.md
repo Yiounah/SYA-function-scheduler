@@ -1,181 +1,39 @@
-# Scheduler Function
+# FocusFlow
 
-SYA scheduler function module with cognitive task decomposition and rolling-wave
-planning. The same repository supports two entry modes:
+FocusFlow 把一个很长的目标拆成阶段，以及你现在就能做的下一步。
 
-- Git submodule and local HTTP function runtime inside `SYA-UI`.
-- Standalone `SYA Scheduler.app` on macOS, with the existing browser dashboard
-  hosted inside an Electron window.
+## 快速开始（给使用者）
 
-In the parent app this repo is linked as:
+用已经打好的 Mac 安装包，不需要安装 Python 或 Node。
 
-```text
-function/scheduler
-```
+1. 打开 `release/` 里的 `FocusFlow-*.dmg`（或从发布页下载同名安装包）
+2. 把 **FocusFlow** 拖进「应用程序」
+3. 打开 FocusFlow
+4. 写下长程目标，选择规划粒度，点「开始规划」
+5. 在路线里把眼前的任务标成进行中、完成或受阻
 
-## What It Owns
+没有配置模型 Key 时，应用会用内置示例计划，界面和操作流程是完整的。
 
-- Natural-language decomposition through `decompose`.
-- Scheduler-compatible task, timeline, stats, and config actions.
-- Hierarchical task trees backed by `sya_task_scheduler`.
-- Rolling-wave replanning that replaces pending work while preserving completed
-  task history.
-- Local debug page and legacy `/api/v1/tasks/*` endpoints for backend testing.
-- Standalone macOS desktop shell with a bundled Python runtime.
+## 从源码运行（给开发者）
 
-For an implementation-grounded list of everything the module currently does,
-including current data and API constraints, see
-[`docs/CURRENT_FUNCTIONALITY.md`](docs/CURRENT_FUNCTIONALITY.md).
+改代码、看最新界面时用这条路径，不要用旧的 `.dmg`。
 
-## Required SYA Files
-
-```text
-module.json
-manifest.json
-api.openapi.json
-bin/scheduler-server
-assets/
-mock/
-sya_task_scheduler/
-```
-
-`manifest.json` starts the local HTTP runtime. `api.openapi.json` defines the
-Function API action names used by the Electron bridge.
-
-## Function API
-
-| Operation ID | Method | Path |
-| --- | --- | --- |
-| `health` | `GET` | `/health` |
-| `manifest` | `GET` | `/manifest` |
-| `decompose` | `POST` | `/api/scheduler/decompose` |
-| `tasks.list` | `GET` | `/api/scheduler/tasks` |
-| `tasks.get` | `GET` | `/api/scheduler/tasks/{taskId}` |
-| `tasks.update` | `PUT` | `/api/scheduler/tasks/{taskId}` |
-| `tasks.delete` | `DELETE` | `/api/scheduler/tasks/{taskId}` |
-| `timeline.get` | `GET` | `/api/scheduler/timeline` |
-| `tasks.reorder` | `POST` | `/api/scheduler/tasks/reorder` |
-| `stats.get` | `GET` | `/api/scheduler/stats` |
-| `config.get` | `GET` | `/api/scheduler/config` |
-| `config.update` | `PUT` | `/api/scheduler/config` |
-
-All endpoints except `/manifest` return:
-
-```json
-{ "ok": true, "data": {} }
-```
-
-The legacy debug routes remain under `/api/v1/tasks/*`, and the debug page is
-served from `/`.
-
-## Mock Data
-
-`mock/` follows the same structure as `SYA-UI/function/scheduler/mock`:
-
-```text
-mock/README.md
-mock/data.json
-mock/server.py
-```
-
-Use it when the real function runtime is not ready but the UI needs stable
-integration-test data:
+准备：macOS、[Python 3.11+](https://www.python.org/downloads/)、[Node.js](https://nodejs.org/)。
 
 ```bash
-cd mock
-python3 server.py
-```
+git clone https://github.com/Yiounah/SYA-function-scheduler.git
+cd SYA-function-scheduler
 
-The mock server listens on `http://127.0.0.1:8766` by default and implements
-the `/api/scheduler/*` endpoints with common sample tasks.
-
-## Local Run
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r sya_task_scheduler/requirements.txt
-npm test
-PORT=8000 bin/scheduler-server
-```
+pip install -r requirements.txt
 
-Open `http://127.0.0.1:8000` for the debug dashboard.
-
-No LLM key is required for local tests. Without `SYA_OPENAI_API_KEY`, the
-runtime uses deterministic mock plans.
-
-## Standalone macOS App
-
-Development mode uses the same FastAPI runtime and dashboard as the submodule:
-
-```bash
+cp .env.example .env
 npm install
-python3.11 -m venv sya_task_scheduler/.venv
-source sya_task_scheduler/.venv/bin/activate
-pip install -r sya_task_scheduler/requirements.txt
 npm run app:dev
 ```
 
-Use any Python 3.11 or newer interpreter in place of `python3.11`. The Electron
-main process allocates a localhost port, starts `bin/scheduler-server`, waits
-for `/health`, and opens the dashboard. Runtime output is written to
-`~/Library/Logs/SYA Scheduler/scheduler-runtime.log`.
+- `npm run app:dev`：开发模式，直接打开当前源码。改完再运行一次即可看到更新。
+- `npm run app:dist:mac`：打包模式，生成别人也能安装的 `release/*.dmg`。包里是打包那一刻的代码，之后改源码要重新打包。
 
-Build an installable app for the current Mac architecture:
-
-```bash
-npm install
-npm run app:dist:mac
-```
-
-The packaging command uses PyInstaller to produce a self-contained Scheduler
-server and then embeds it in the Electron app. The generated `.dmg` and `.zip`
-are written to `release/`; the installed app does not require a separate Python
-installation. The local build is not Developer ID signed or notarized, so
-macOS may require an explicit first-open confirmation.
-
-## Build Artifact
-
-```bash
-npm run build
-```
-
-This writes:
-
-```text
-dist/sya-function-scheduler-0.1.0-<target>.tar.gz
-```
-
-The archive contains the files required by the SYA Electron function runtime.
-This function archive uses the Python launcher in `bin/scheduler-server`, so the
-host must provide Python 3.11+ and the dependencies in
-`sya_task_scheduler/requirements.txt`. The standalone macOS package described
-above embeds its own executable runtime and has no such host-Python dependency.
-
-## Parent Repo Integration
-
-From the SYA-UI parent repository, pin this repo at `function/scheduler`.
-
-If `function/scheduler` is already a submodule:
-
-```bash
-git checkout dev
-git pull --ff-only
-git submodule set-url function/scheduler https://github.com/Yiounah/SYA-function-scheduler.git
-git submodule update --init --recursive --remote function/scheduler
-git add .gitmodules function/scheduler
-git commit -m "feat: update scheduler function module"
-```
-
-If `function/scheduler` does not exist yet:
-
-```bash
-git checkout dev
-git pull --ff-only
-git submodule add -b main https://github.com/Yiounah/SYA-function-scheduler.git function/scheduler
-git add .gitmodules function/scheduler
-git commit -m "feat: add scheduler function module"
-```
-
-If UI changes are needed for new actions, add a feedback note in the parent
-repo docs so the UI owner can map the new API to renderer features.
+要用 GLM-5.3 做真正拆解时：到 [智谱开放平台](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 创建 Key，填进 `.env` 的 `SYA_OPENAI_API_KEY=`，然后重新运行 `npm run app:dev`。

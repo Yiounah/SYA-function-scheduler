@@ -64,11 +64,13 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
         """Generate decomposition tree via OpenAI API format or local fallback."""
 
         if not self._api_key:
+            logger.warning("LLM API key is empty; using local mock plan")
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
 
         system_prompt = (
-            "You are a cognitive-aware planning model. Output strict JSON only. "
-            "No markdown, no explanations, and obey the schema exactly."
+            "You are a cognitive-aware planning model. Output a single JSON object only. "
+            "No markdown, no explanations, and obey this JSON Schema exactly:\n"
+            f"{json.dumps(response_schema, ensure_ascii=False)}"
         )
         user_prompt = self._compose_prompt(goal, persona, strategy, context)
 
@@ -78,29 +80,37 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "task_tree",
-                    "schema": response_schema,
-                    "strict": True,
-                },
-            },
+            "response_format": {"type": "json_object"},
             "temperature": 0.2,
+            "thinking": {"type": "enabled"},
+            "reasoning_effort": "low",
+            "max_tokens": 4096,
         }
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
                 response = await client.post(
                     f"{self._base_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
                     json=payload,
                 )
                 response.raise_for_status()
                 response_payload = response.json()
 
-            content = response_payload["choices"][0]["message"]["content"]
+            content = response_payload["choices"][0]["message"].get("content")
+            if not content:
+                raise ValueError("LLM returned empty content")
             return self._load_json_content(content)
+        except httpx.HTTPStatusError as exc:
+            logger.exception(
+                "LLM HTTP %s: %s",
+                exc.response.status_code,
+                exc.response.text[:500],
+            )
+            return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
         except Exception:
             logger.exception("LLM request failed, fallback plan will be used")
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
@@ -120,7 +130,9 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
             f"Persona: {persona.model_dump(mode='json')}\n"
             f"Strategy: {strategy_text}\n"
             f"Context: {json.dumps(context, ensure_ascii=True)}\n"
-            "Produce actionable tasks with realistic estimated_time and explicit hierarchy."
+            "Treat this as a long-horizon goal. Parents are multi-day or multi-week "
+            "milestones; leaves are the next executable steps. Keep estimated_time in hours "
+            "and produce an explicit hierarchy at least two levels deep."
         )
 
     def _load_json_content(self, content: str) -> dict[str, Any]:
@@ -372,10 +384,12 @@ class CognitiveEngine:
             "cognitive_phase": "intent_capture",
             "goal": goal,
             "persona": persona.model_dump(mode="json"),
+            "horizon": "long",
             "constraints": {
                 "must_return_json": True,
                 "leaf_nodes_default_pending": True,
                 "hierarchy_depth_min": 2,
+                "prefer_milestone_parents": True,
             },
         }
 

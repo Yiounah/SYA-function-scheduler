@@ -2,15 +2,10 @@
 Thumbs.db
 .vscode/
 node_modules/
-/UI.png
-/前端.png
-/原来的网页界面.png
 
 .env
 .env.*
 !.env.example
-config.json
-config.local.json
 
 .venv/
 venv/
@@ -27,10 +22,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-htmlcov/
-.pycache_local/
-**/.pycache_local/
 
 dist/
 build/
@@ -38,6 +29,3 @@ release/
 desktop-runtime/
 .desktop-build/
 *.egg-info/
-
-app/function-runtime/
-.function-artifact-cache/

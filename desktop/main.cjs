@@ -7,7 +7,7 @@ const path = require('node:path');
 const STARTUP_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_MS = 150;
 
-app.setName('SYA Scheduler');
+app.setName('FocusFlow');
 
 let mainWindow = null;
 let runtimeProcess = null;
@@ -125,7 +125,7 @@ async function startRuntime() {
 function installMenu(baseUrl, logPath) {
   const template = [
     {
-      label: 'SYA Scheduler',
+      label: 'FocusFlow',
       submenu: [
         { role: 'about' },
         { type: 'separator' },
@@ -144,11 +144,11 @@ function installMenu(baseUrl, logPath) {
 
 async function createWindow(baseUrl, logPath) {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 940,
-    minWidth: 920,
-    minHeight: 680,
-    title: 'SYA Scheduler',
+    width: 1180,
+    height: 820,
+    minWidth: 860,
+    minHeight: 640,
+    title: 'FocusFlow',
     show: false,
     backgroundColor: '#f5efe3',
     webPreferences: {
