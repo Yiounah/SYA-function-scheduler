@@ -48,9 +48,12 @@ class FocusFlowAppTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("FocusFlow Planner", response.text)
+        self.assertIn("科研任务规划", response.text)
+        self.assertIn("新建规划", response.text)
+        self.assertIn("时间轴", response.text)
         self.assertIn("长程目标", response.text)
         self.assertNotIn("Live Event Stream", response.text)
+        self.assertNotIn("FocusFlow Planner", response.text)
 
     def test_init_creates_task_tree(self) -> None:
         response = self.client.post(
@@ -110,6 +113,53 @@ class FocusFlowAppTests(unittest.TestCase):
 
         event_types = {first_message["event_type"], second_message["event_type"]}
         self.assertEqual(event_types, {"NEW_TASK", "TREE_MUTATED"})
+
+    def test_sya_decompose_matches_dashboard_shape(self) -> None:
+        empty = self.client.get("/api/scheduler/timeline")
+        self.assertEqual(empty.status_code, 200)
+        empty_payload = empty.json()
+        self.assertTrue(empty_payload["ok"])
+        self.assertEqual(empty_payload["data"]["events"], [])
+
+        response = self.client.post(
+            "/api/scheduler/decompose",
+            json={"input": "Prepare the weekly research update", "attachments": []},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        data = payload["data"]
+        self.assertIn("tasks", data)
+        self.assertIn("events", data["timeline"])
+        self.assertGreaterEqual(len(data["tasks"]), 1)
+        self.assertGreaterEqual(len(data["timeline"]["events"]), 1)
+
+        event = data["timeline"]["events"][0]
+        self.assertIn("time", event)
+        self.assertIn("taskId", event)
+        self.assertIn("title", event)
+        self.assertIn(event["status"], {"active", "upcoming", "completed"})
+
+        task = data["tasks"][0]
+        self.assertIn("id", task)
+        self.assertIn(task["status"], {"pending", "active", "completed"})
+        self.assertIsInstance(task["subtasks"], list)
+        self.assertTrue(task["createdAt"])
+
+        listed = self.client.get("/api/scheduler/tasks").json()["data"]
+        self.assertGreaterEqual(len(listed), 1)
+        fetched = self.client.get(f"/api/scheduler/tasks/{task['id']}").json()["data"]
+        self.assertEqual(fetched["id"], task["id"])
+
+        stats = self.client.get("/api/scheduler/stats").json()["data"]
+        self.assertIn("completedCount", stats)
+        config = self.client.get("/api/scheduler/config").json()["data"]
+        self.assertIn("defaultDurationMinutes", config)
+        self.assertIn("autoScheduleEnabled", config)
+
+        manifest = self.client.get("/manifest")
+        self.assertEqual(manifest.status_code, 200)
+        self.assertEqual(manifest.json()["id"], "scheduler")
 
 
 if __name__ == "__main__":

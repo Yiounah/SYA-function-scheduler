@@ -1,0 +1,18 @@
+{
+  "name": "scheduler",
+  "packageName": "@sya/function-scheduler",
+  "visibility": "private",
+  "repository": "https://github.com/Yiounah/SYA-function-scheduler.git",
+  "sourceAnchors": [
+    "function/scheduler/",
+    "function/scheduler/app/main.py",
+    "function/scheduler/app/sya_function_api.py",
+    "function/scheduler/app/core/cognitive_engine.py",
+    "function/scheduler/app/core/rolling_planner.py",
+    "function/scheduler/app/services/task_manager.py",
+    "app/src/features/scheduler/api.ts",
+    "app/src/pages/DashboardPage.tsx",
+    "app/src/types/electron.d.ts"
+  ],
+  "description": "AI task decomposition, scheduler-compatible task APIs, and rolling-wave planning for SYA."
+}

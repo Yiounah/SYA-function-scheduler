@@ -9,8 +9,8 @@ FocusFlow 把一个很长的目标拆成阶段，以及你现在就能做的下�
 1. 打开 `release/` 里的 `FocusFlow-*.dmg`（或从发布页下载同名安装包）
 2. 把 **FocusFlow** 拖进「应用程序」
 3. 打开 FocusFlow
-4. 写下长程目标，选择规划粒度，点「开始规划」
-5. 在路线里把眼前的任务标成进行中、完成或受阻
+4. 点「新建规划」，写下长程目标，选择规划粒度，生成研究时间轴
+5. 在时间轴里选择阶段，把眼前的清单标成进行中或完成
 
 没有配置模型 Key 时，应用会用内置示例计划，界面和操作流程是完整的。
 
@@ -24,7 +24,7 @@ FocusFlow 把一个很长的目标拆成阶段，以及你现在就能做的下�
 git clone https://github.com/Yiounah/SYA-function-scheduler.git
 cd SYA-function-scheduler
 
-python3 -m venv .venv
+python3.13 -m venv .venv   # 必须是 3.11+；macOS 自带 python3 通常是 3.9，不能用
 source .venv/bin/activate
 pip install -r requirements.txt
 

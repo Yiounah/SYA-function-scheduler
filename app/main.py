@@ -243,3 +243,8 @@ async def tree_stream(websocket: WebSocket) -> None:
 
     container: AppContainer = websocket.app.state.container
     await container.ws_sync_service.serve(websocket)
+
+
+from app.sya_function_api import attach_sya_routes
+
+attach_sya_routes(app)

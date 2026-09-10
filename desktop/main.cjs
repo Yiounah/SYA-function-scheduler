@@ -144,13 +144,13 @@ function installMenu(baseUrl, logPath) {
 
 async function createWindow(baseUrl, logPath) {
   mainWindow = new BrowserWindow({
-    width: 1180,
-    height: 820,
-    minWidth: 860,
-    minHeight: 640,
+    width: 1280,
+    height: 860,
+    minWidth: 1080,
+    minHeight: 720,
     title: 'FocusFlow',
     show: false,
-    backgroundColor: '#f5efe3',
+    backgroundColor: '#eef3f9',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

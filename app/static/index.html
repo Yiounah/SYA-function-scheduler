@@ -3,245 +3,402 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FocusFlow Planner</title>
+    <title>科研任务规划</title>
     <style>
       :root {
-        --bg: #f5efe3;
-        --panel: rgba(255, 252, 245, 0.94);
-        --line: rgba(43, 64, 44, 0.12);
-        --ink: #1d2b1f;
-        --muted: #5c665e;
-        --accent: #166a4a;
-        --accent-soft: #dff2e8;
-        --accent-strong: #0f5137;
-        --warm: #b45c2f;
-        --danger: #8a2d2d;
-        --danger-soft: #f6dddd;
-        --warning: #8d661f;
-        --warning-soft: #f9ebc7;
-        --shadow: 0 16px 40px rgba(37, 31, 22, 0.1);
+        --bg: #eef3f9;
+        --surface: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --primary: #3b82f6;
+        --primary-strong: #2563eb;
+        --primary-soft: #eff6ff;
+        --primary-line: #93c5fd;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        --sidebar: 248px;
       }
 
       * { box-sizing: border-box; }
-
-      html, body {
-        margin: 0;
-        min-height: 100%;
+      html, body { margin: 0; height: 100%; }
+      body {
         color: var(--ink);
-        font-family: "Avenir Next", "PingFang SC", "Segoe UI", sans-serif;
-        background:
-          radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 38%),
-          linear-gradient(180deg, var(--bg) 0%, #f1e8d6 100%);
+        background: var(--bg);
+        font-family: "PingFang SC", "Avenir Next", "Segoe UI", sans-serif;
       }
-
-      body { padding: 20px; }
-
-      .shell {
-        max-width: 1180px;
-        margin: 0 auto;
-        display: grid;
-        gap: 16px;
-      }
-
-      .hero {
-        background: linear-gradient(135deg, rgba(30, 50, 33, 0.95), rgba(17, 90, 62, 0.92));
-        color: #f8f3ea;
-        border-radius: 24px;
-        padding: 22px 26px;
-        box-shadow: var(--shadow);
-      }
-
-      .hero h1 {
-        margin: 0 0 8px;
-        font-family: "Iowan Old Style", "Songti SC", serif;
-        font-size: clamp(1.6rem, 3vw, 2.4rem);
-        letter-spacing: -0.03em;
-      }
-
-      .hero p {
-        margin: 0;
-        max-width: 52ch;
-        color: rgba(248, 243, 234, 0.82);
-        line-height: 1.55;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: 300px minmax(0, 1fr);
-        gap: 16px;
-      }
-
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 22px;
-        box-shadow: var(--shadow);
-        min-height: 280px;
-      }
-
-      .panel-inner { padding: 20px; }
-      .panel h2 { margin: 0 0 6px; font-size: 1.15rem; }
-
-      .panel-copy {
-        margin: 0 0 16px;
-        color: var(--muted);
-        font-size: 0.92rem;
-        line-height: 1.5;
-      }
-
-      .stack { display: grid; gap: 12px; }
-
-      label {
-        display: grid;
-        gap: 6px;
-        font-size: 0.9rem;
-        color: var(--muted);
-      }
-
-      input, select, button, textarea { font: inherit; }
-
-      input, select, textarea {
-        width: 100%;
-        border: 1px solid rgba(31, 46, 34, 0.14);
-        border-radius: 12px;
-        padding: 12px 13px;
-        background: rgba(255, 255, 255, 0.88);
-        color: var(--ink);
-      }
-
-      textarea {
-        min-height: 92px;
-        resize: vertical;
-        line-height: 1.45;
-      }
-
-      button {
-        border: none;
-        border-radius: 12px;
-        padding: 12px 16px;
-        cursor: pointer;
-      }
-
+      button, input, select, textarea { font: inherit; }
+      button { cursor: pointer; }
       button:disabled { opacity: 0.6; cursor: wait; }
 
-      .primary {
-        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-        color: #fffef8;
-      }
-
-      .mini {
-        padding: 7px 10px;
-        border-radius: 10px;
-        font-size: 0.82rem;
-      }
-
-      .mini.done { background: var(--accent-soft); color: var(--accent-strong); }
-      .mini.progress { background: var(--warning-soft); color: var(--warning); }
-      .mini.blocked { background: var(--danger-soft); color: var(--danger); }
-
-      .stats {
+      .app {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        grid-template-columns: var(--sidebar) minmax(0, 1fr);
+        height: 100%;
       }
 
-      .stat {
-        padding: 12px;
+      .sidebar {
+        background: var(--surface);
+        border-right: 1px solid var(--line);
+        padding: 22px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .new-plan {
+        width: 100%;
+        border: 0;
         border-radius: 14px;
-        background: rgba(22, 106, 74, 0.08);
+        padding: 12px 14px;
+        background: linear-gradient(180deg, var(--primary), var(--primary-strong));
+        color: #fff;
+        font-weight: 600;
       }
 
-      .stat b { display: block; font-size: 1.2rem; margin-bottom: 2px; }
-      .muted { color: var(--muted); }
+      .nav-label, .section-label {
+        margin: 0 0 8px;
+        padding: 0 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .nav-list, .project-list { display: grid; gap: 4px; }
+      .nav-item, .project-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        border-radius: 12px;
+        padding: 10px 12px;
+        text-align: left;
+      }
+      .nav-item.active, .project-item.active {
+        background: var(--primary-soft);
+        color: var(--primary-strong);
+        font-weight: 600;
+      }
+      .ghost {
+        color: var(--muted);
+        background: transparent;
+        border: 0;
+        padding: 8px 12px;
+        text-align: left;
+      }
+
+      .sidebar-footer {
+        margin-top: auto;
+        padding: 10px 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-rows: 64px minmax(0, 1fr);
+        min-width: 0;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 28px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--primary-strong);
+        font-weight: 600;
+      }
+
+      .search {
+        width: min(280px, 36vw);
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 999px;
+        padding: 9px 14px 9px 36px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='1.6' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3-3'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: 12px center;
+      }
+
+      .content {
+        overflow: auto;
+        padding: 0 28px 28px;
+        display: grid;
+        gap: 16px;
+        align-content: start;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 22px 24px;
+      }
+
+      .project-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: flex-start;
+      }
+
+      .project-head h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        letter-spacing: -0.02em;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 8px;
+        background: var(--primary-soft);
+        color: var(--primary-strong);
+      }
+
+      .progress-wrap {
+        min-width: 220px;
+        text-align: right;
+      }
 
       .progress {
         height: 8px;
         border-radius: 999px;
-        background: rgba(29, 43, 31, 0.08);
+        background: var(--line);
         overflow: hidden;
+        margin-bottom: 6px;
       }
-
       .progress > span {
         display: block;
         height: 100%;
         width: 0;
-        background: var(--accent);
+        background: linear-gradient(90deg, var(--primary), #22d3ee);
       }
 
-      .tree-root { display: grid; gap: 12px; }
-
-      .tree-node {
-        position: relative;
-        border-radius: 16px;
-        border: 1px solid rgba(31, 46, 34, 0.1);
-        background: rgba(255, 255, 255, 0.8);
-        padding: 14px;
-      }
-
-      .tree-node::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 14px;
-        bottom: 14px;
-        width: 4px;
-        border-radius: 999px;
-        background: var(--accent);
-        opacity: 0.2;
-      }
-
-      .tree-head {
+      .card-head {
         display: flex;
         justify-content: space-between;
-        gap: 10px;
-        align-items: flex-start;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 18px;
       }
 
-      .tree-title { margin: 0; font-size: 1rem; }
-
-      .tree-desc {
-        margin: 6px 0 0;
-        color: var(--muted);
-        font-size: 0.9rem;
-        line-height: 1.45;
+      .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; }
+      .legend i {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
       }
+      .dot-done { background: var(--primary); }
+      .dot-now { background: #fff; box-shadow: 0 0 0 2px var(--primary); }
+      .dot-todo { background: #fff; box-shadow: 0 0 0 2px var(--line); }
 
-      .tree-meta, .tree-actions {
+      .range-toggle {
         display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 3px;
+      }
+      .range-toggle button {
+        border: 0;
+        background: transparent;
+        border-radius: 8px;
+        padding: 6px 12px;
+        color: var(--muted);
+      }
+      .range-toggle button.active {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: var(--shadow);
       }
 
-      .pill {
-        display: inline-flex;
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-size: 0.78rem;
-      }
-
-      .status-pending { background: rgba(29, 43, 31, 0.08); }
-      .status-in-progress { background: var(--warning-soft); color: var(--warning); }
-      .status-done { background: var(--accent-soft); color: var(--accent-strong); }
-      .status-blocked, .status-skipped { background: var(--danger-soft); color: var(--danger); }
-
-      .children {
-        margin-top: 12px;
-        margin-left: 16px;
+      .timeline {
         display: grid;
-        gap: 10px;
-        padding-left: 10px;
-        border-left: 1px dashed rgba(29, 43, 31, 0.16);
+        grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+        position: relative;
+        gap: 8px;
+        padding-top: 8px;
       }
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        top: 27px;
+        height: 3px;
+        background: var(--line);
+      }
+      .milestone {
+        border: 0;
+        background: transparent;
+        display: grid;
+        justify-items: center;
+        gap: 10px;
+        position: relative;
+        z-index: 1;
+        padding: 0;
+      }
+      .node {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 3px solid var(--line);
+        background: #fff;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 12px;
+      }
+      .milestone.done .node { background: var(--primary); border-color: var(--primary); }
+      .milestone.current .node { border-color: var(--primary); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.16); }
+      .milestone.done.current .node { background: var(--primary); }
+      .ms-date { color: var(--muted); font-size: 12px; }
+      .ms-title { font-size: 13px; font-weight: 600; }
+      .ms-copy { color: var(--muted); font-size: 12px; }
+      .ms-card {
+        width: 100%;
+        border-radius: 14px;
+        padding: 10px 8px;
+        text-align: center;
+      }
+      .milestone.current .ms-card { background: var(--primary-soft); color: var(--primary-strong); }
+      .milestone.current .ms-copy { color: var(--primary); }
+
+      .month-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+      }
+      .month-grid .dow, .month-grid .day {
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+        padding: 8px 0;
+      }
+      .month-grid .day {
+        min-height: 64px;
+        border-radius: 12px;
+        background: #f8fafc;
+        color: var(--ink);
+      }
+      .month-grid .day.has-ms { background: var(--primary-soft); color: var(--primary-strong); font-weight: 600; }
+      .month-grid .day.empty { background: transparent; }
+
+      .subtask-card { display: grid; gap: 16px; }
+      .subtask-layout {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 8px;
+        min-height: 240px;
+      }
+
+      .subtask-list { display: grid; align-content: start; gap: 4px; }
+      .subtask-item {
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 10px;
+        align-items: center;
+        border: 0;
+        background: transparent;
+        padding: 10px 8px;
+        border-radius: 12px;
+        text-align: left;
+      }
+      .subtask-item.active { background: var(--primary-soft); color: var(--primary-strong); }
+      .mark {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid var(--line);
+        background: #fff;
+      }
+      .subtask-item.done .mark { background: var(--primary); border-color: var(--primary); }
+      .subtask-item.current .mark { border-color: var(--primary); box-shadow: inset 0 0 0 3px #fff; background: var(--primary); }
+
+      .detail {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px 18px 16px;
+      }
+      .detail h3 { margin: 0 0 6px; font-size: 16px; }
+      .detail-meta { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+      .checklist { display: grid; gap: 8px; }
+      .check-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 4px;
+      }
+      .check-row input { width: 16px; height: 16px; accent-color: var(--primary); }
+      .check-row.done span { color: var(--muted); text-decoration: line-through; }
+
+      .detail-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .secondary, .primary {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 14px;
+      }
+      .secondary { background: var(--primary-soft); color: var(--primary-strong); }
+      .primary { background: var(--primary); color: #fff; }
 
       .empty {
-        padding: 22px;
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.62);
-        border: 1px dashed rgba(31, 46, 34, 0.16);
         color: var(--muted);
-        line-height: 1.55;
+        padding: 28px 8px;
+        line-height: 1.6;
       }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.28);
+        display: none;
+        place-items: center;
+        z-index: 20;
+        padding: 24px;
+      }
+      .modal.open { display: grid; }
+      .modal-card {
+        width: min(480px, 100%);
+        background: #fff;
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+      }
+      .modal-card h2 { margin: 0 0 8px; }
+      .stack { display: grid; gap: 12px; }
+      label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+      textarea, select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+      textarea { min-height: 96px; resize: vertical; }
 
       .toast {
         position: fixed;
@@ -250,121 +407,135 @@
         max-width: 280px;
         padding: 12px 14px;
         border-radius: 14px;
-        background: rgba(22, 34, 25, 0.92);
-        color: #fffef8;
+        background: rgba(15, 23, 42, 0.92);
+        color: #fff;
         opacity: 0;
         transform: translateY(12px);
         pointer-events: none;
         transition: opacity 180ms ease, transform 180ms ease;
       }
+      .toast.visible { opacity: 1; transform: translateY(0); }
 
-      .toast.visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
-
-      @media (max-width: 860px) {
-        .grid { grid-template-columns: 1fr; }
-        body { padding: 12px; }
+      @media (max-width: 980px) {
+        .app { grid-template-columns: 1fr; }
+        .sidebar { display: none; }
+        .subtask-layout { grid-template-columns: 1fr; }
       }
     </style>
   </head>
   <body>
-    <div class="shell">
-      <section class="hero">
-        <h1>FocusFlow</h1>
-        <p>把一个很长的目标拆成阶段和下一步。先看整段路，再只推进眼前这一层。</p>
-      </section>
+    <div class="app">
+      <aside class="sidebar">
+        <button class="new-plan" id="open-modal" type="button">+ 新建规划</button>
+        <div>
+          <p class="nav-label">导航</p>
+          <div class="nav-list">
+            <button class="nav-item active" data-nav="timeline" type="button">时间轴</button>
+            <button class="nav-item" data-nav="calendar" type="button">日历</button>
+          </div>
+        </div>
+        <div>
+          <p class="section-label">我的课题</p>
+          <div class="project-list" id="project-list"></div>
+          <button class="ghost" id="open-modal-secondary" type="button">+ 新建课题</button>
+        </div>
+        <div class="sidebar-footer" id="sidebar-footer">本学期 · 0 个进行中课题</div>
+      </aside>
 
-      <section class="grid">
-        <aside class="panel">
-          <div class="panel-inner">
-            <h2>长程目标</h2>
-            <p class="panel-copy">输入一个需要持续推进的目标，生成分层路线图。</p>
+      <section class="workspace">
+        <header class="topbar">
+          <div class="brand">科研任务规划</div>
+          <input class="search" id="search" type="search" placeholder="搜索任务..." aria-label="搜索任务" />
+        </header>
 
-            <form id="init-form" class="stack">
-              <label>
-                目标
-                <textarea
-                  id="goal"
-                  name="goal"
-                  required
-                  placeholder="例如：三个月内独立做出一款桌面应用"
-                >三个月内独立做出一款能帮人拆解长程目标的桌面应用</textarea>
-              </label>
-
-              <label>
-                规划粒度
-                <select id="persona" name="persona">
-                  <option value="macro">远距里程碑</option>
-                  <option value="balanced" selected>均衡推进</option>
-                  <option value="micro">近距拆细</option>
-                </select>
-              </label>
-
-              <button class="primary" id="init-button" type="submit">开始规划</button>
-            </form>
-
-            <div class="stack" style="margin-top: 18px">
-              <h2 style="margin-bottom: 0">行程</h2>
+        <main class="content">
+          <section class="card project-head">
+            <div>
+              <h1 id="project-title">还没有课题</h1>
+              <div class="meta" id="project-meta">写下长程目标后生成研究时间轴</div>
+            </div>
+            <div class="progress-wrap">
               <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
-              <div class="stats">
-                <div class="stat">
-                  <b id="stat-depth">0</b>
-                  <span class="muted">路线层数</span>
-                </div>
-                <div class="stat">
-                  <b id="stat-remaining">0h</b>
-                  <span class="muted">剩余预计</span>
-                </div>
-                <div class="stat">
-                  <b id="stat-pending">0</b>
-                  <span class="muted">待推进</span>
-                </div>
-                <div class="stat">
-                  <b id="stat-done">0</b>
-                  <span class="muted">已完成</span>
+              <div class="muted" id="progress-label">0%</div>
+            </div>
+          </section>
+
+          <section class="card" id="timeline-card">
+            <div class="card-head">
+              <div>
+                <strong id="board-title">研究时间轴</strong>
+                <div class="legend">
+                  <span><i class="dot-done"></i>已完成</span>
+                  <span><i class="dot-now"></i>进行中</span>
+                  <span><i class="dot-todo"></i>未开始</span>
                 </div>
               </div>
-              <div class="empty" id="summary">还没有路线图。写下长程目标后开始规划。</div>
+              <div>
+                <div class="meta" id="range-label"></div>
+                <div class="range-toggle">
+                  <button class="active" data-range="week" type="button">周</button>
+                  <button data-range="month" type="button">月</button>
+                </div>
+              </div>
             </div>
-          </div>
-        </aside>
+            <div id="board"></div>
+          </section>
 
-        <main class="panel">
-          <div class="panel-inner">
-            <h2>长程路线</h2>
-            <p class="panel-copy">上层是阶段，底层是马上能做的下一步。完成叶子任务后，路线会按进度自动调整。</p>
-            <div id="tree-root" class="tree-root">
-              <div class="empty">规划完成后，长程任务会按阶段出现在这里。</div>
+          <section class="card subtask-card">
+            <div class="card-head">
+              <strong id="subtask-heading">子任务</strong>
+              <span class="meta" id="subtask-count"></span>
             </div>
-          </div>
+            <div class="subtask-layout">
+              <div class="subtask-list" id="subtask-list"></div>
+              <div class="detail" id="subtask-detail"></div>
+            </div>
+          </section>
         </main>
       </section>
+    </div>
+
+    <div class="modal" id="modal" role="dialog" aria-labelledby="modal-title">
+      <form class="modal-card stack" id="init-form">
+        <h2 id="modal-title">新建规划</h2>
+        <p class="empty" style="padding: 0">输入一个跨阶段的研究目标，生成时间轴和下一步清单。</p>
+        <label>
+          长程目标
+          <textarea id="goal" name="goal" required placeholder="例如：用最小 GPU 资源微调长程 LLM 智能体">Fine-Tuning Long-Horizon LLM Agents with Minimal GPU Requirements</textarea>
+        </label>
+        <label>
+          规划粒度
+          <select id="persona" name="persona">
+            <option value="macro">远距里程碑</option>
+            <option value="balanced" selected>均衡推进</option>
+            <option value="micro">近距拆细</option>
+          </select>
+        </label>
+        <div class="detail-actions">
+          <button class="secondary" id="cancel-modal" type="button">取消</button>
+          <button class="primary" id="init-button" type="submit">生成时间轴</button>
+        </div>
+      </form>
     </div>
 
     <div id="toast" class="toast" aria-live="polite"></div>
 
     <script>
-      const state = { tree: null, ws: null, inflight: false };
+      const state = {
+        tree: null,
+        ws: null,
+        inflight: false,
+        nav: "timeline",
+        range: "week",
+        selectedMilestoneId: null,
+        selectedSubtaskId: null,
+        search: "",
+      };
 
-      const treeRoot = document.getElementById("tree-root");
-      const summary = document.getElementById("summary");
       const toast = document.getElementById("toast");
+      const modal = document.getElementById("modal");
       const initForm = document.getElementById("init-form");
       const initButton = document.getElementById("init-button");
-
-      function setBusy(isBusy) {
-        state.inflight = isBusy;
-        initButton.disabled = isBusy;
-      }
-
-      function showToast(message) {
-        toast.textContent = message;
-        toast.classList.add("visible");
-        window.clearTimeout(showToast.timeoutId);
-        showToast.timeoutId = window.setTimeout(() => toast.classList.remove("visible"), 2400);
-      }
 
       function escapeHtml(value) {
         return String(value)
@@ -375,88 +546,228 @@
           .replaceAll("'", "&#39;");
       }
 
-      function statusClass(status) {
-        return `status-${String(status).toLowerCase().replaceAll("_", "-")}`;
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("visible");
+        window.clearTimeout(showToast.timeoutId);
+        showToast.timeoutId = window.setTimeout(() => toast.classList.remove("visible"), 2400);
       }
 
-      function collectStats(node) {
-        const stats = { leaves: 0, pending: 0, done: 0, remaining: 0, depth: 0 };
-        if (!node) return stats;
-
-        const visit = (current, depth) => {
-          stats.depth = Math.max(stats.depth, depth);
-          const children = current.children || [];
-          if (children.length === 0) {
-            stats.leaves += 1;
-            if (current.status === "PENDING" || current.status === "IN_PROGRESS") {
-              stats.remaining += Number(current.estimated_time || 0);
-            }
-          }
-          if (current.status === "PENDING") stats.pending += 1;
-          if (current.status === "DONE") stats.done += 1;
-          for (const child of children) visit(child, depth + 1);
-        };
-
-        visit(node, 1);
-        return stats;
+      function setBusy(isBusy) {
+        state.inflight = isBusy;
+        initButton.disabled = isBusy;
       }
 
-      function renderStats() {
-        const stats = collectStats(state.tree);
-        const ratio = stats.leaves ? stats.done / stats.leaves : 0;
-        document.getElementById("stat-depth").textContent = String(stats.depth);
-        document.getElementById("stat-remaining").textContent = `${stats.remaining.toFixed(1)}h`;
-        document.getElementById("stat-pending").textContent = String(stats.pending);
-        document.getElementById("stat-done").textContent = String(stats.done);
+      function formatDate(date) {
+        return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+      }
+
+      function shortDate(date) {
+        return `${date.getMonth() + 1}/${date.getDate()}`;
+      }
+
+      function collectLeaves(node) {
+        if (!node) return [];
+        if (!node.children || node.children.length === 0) return [node];
+        return node.children.flatMap(collectLeaves);
+      }
+
+      function nodeKind(node) {
+        if (!node) return "todo";
+        if (node.status === "DONE") return "done";
+        if (node.status === "IN_PROGRESS" || collectLeaves(node).some((leaf) => leaf.status === "IN_PROGRESS")) return "current";
+        if (collectLeaves(node).every((leaf) => leaf.status === "DONE")) return "done";
+        return "todo";
+      }
+
+      function milestones() {
+        if (!state.tree) return [];
+        return state.tree.children && state.tree.children.length ? state.tree.children : [state.tree];
+      }
+
+      function scheduledMilestones() {
+        const items = milestones();
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        let cursor = start.getTime();
+        return items.map((node) => {
+          const days = Math.max(3, Math.round(Number(node.estimated_time || 1) * 7));
+          const from = new Date(cursor);
+          cursor += days * 24 * 60 * 60 * 1000;
+          const to = new Date(cursor);
+          return { node, from, to, kind: nodeKind(node) };
+        });
+      }
+
+      function subtasksOf(milestone) {
+        if (!milestone) return [];
+        return milestone.children && milestone.children.length ? milestone.children : [milestone];
+      }
+
+      function checklistOf(subtask) {
+        if (!subtask) return [];
+        return subtask.children && subtask.children.length ? subtask.children : [subtask];
+      }
+
+      function selectedMilestone() {
+        return scheduledMilestones().find((item) => item.node.task_id === state.selectedMilestoneId)?.node
+          || scheduledMilestones()[0]?.node
+          || null;
+      }
+
+      function selectedSubtask() {
+        const milestone = selectedMilestone();
+        const tasks = subtasksOf(milestone).filter(matchesSearch);
+        return tasks.find((node) => node.task_id === state.selectedSubtaskId) || tasks[0] || null;
+      }
+
+      function matchesSearch(node) {
+        const query = state.search.trim().toLowerCase();
+        if (!query) return true;
+        return `${node.title} ${node.description || ""}`.toLowerCase().includes(query);
+      }
+
+      function ensureSelection() {
+        const items = scheduledMilestones();
+        if (!items.length) {
+          state.selectedMilestoneId = null;
+          state.selectedSubtaskId = null;
+          return;
+        }
+        if (!items.some((item) => item.node.task_id === state.selectedMilestoneId)) {
+          const current = items.find((item) => item.kind === "current") || items.find((item) => item.kind !== "done") || items[0];
+          state.selectedMilestoneId = current.node.task_id;
+        }
+        const tasks = subtasksOf(selectedMilestone()).filter(matchesSearch);
+        if (!tasks.some((node) => node.task_id === state.selectedSubtaskId)) {
+          state.selectedSubtaskId = tasks[0]?.task_id || null;
+        }
+      }
+
+      function renderSidebar() {
+        const count = state.tree ? 1 : 0;
+        document.getElementById("sidebar-footer").textContent = `本学期 · ${count} 个进行中课题`;
+        document.getElementById("project-list").innerHTML = state.tree
+          ? `<button class="project-item active" type="button">${escapeHtml(state.tree.title)}</button>`
+          : `<div class="empty" style="padding: 8px 12px">暂无课题</div>`;
+      }
+
+      function renderHeader() {
+        const leaves = collectLeaves(state.tree);
+        const done = leaves.filter((leaf) => leaf.status === "DONE").length;
+        const ratio = leaves.length ? done / leaves.length : 0;
+        const schedule = scheduledMilestones();
+        const from = schedule[0]?.from;
+        const to = schedule.at(-1)?.to;
+        document.getElementById("project-title").textContent = state.tree ? state.tree.title : "还没有课题";
+        document.getElementById("project-meta").innerHTML = state.tree
+          ? `<span class="chip">研究课题</span><span>周期 ${formatDate(from)} - ${formatDate(to)}</span><span>整体进度 ${Math.round(ratio * 100)}%</span>`
+          : "写下长程目标后生成研究时间轴";
         document.getElementById("progress-bar").style.width = `${Math.round(ratio * 100)}%`;
+        document.getElementById("progress-label").textContent = `${Math.round(ratio * 100)}%`;
+        if (from && to) document.getElementById("range-label").textContent = `${formatDate(from)} - ${formatDate(to)}`;
+      }
 
-        if (!state.tree) {
-          summary.textContent = "还没有路线图。写下长程目标后开始规划。";
+      function renderTimeline(items) {
+        const board = document.getElementById("board");
+        if (!items.length) {
+          board.innerHTML = `<div class="empty">规划完成后，研究阶段会按时间出现在这里。</div>`;
+          return;
+        }
+        board.style.setProperty("--cols", String(items.length));
+        board.className = "timeline";
+        board.innerHTML = items.map((item) => {
+          const selected = item.node.task_id === state.selectedMilestoneId;
+          const leaves = collectLeaves(item.node);
+          const done = leaves.filter((leaf) => leaf.status === "DONE").length;
+          return `
+            <button class="milestone ${item.kind}${selected ? " current" : ""}" data-milestone-id="${escapeHtml(item.node.task_id)}" type="button">
+              <span class="ms-date">${shortDate(item.to)}</span>
+              <span class="node">${item.kind === "done" ? "✓" : ""}</span>
+              <span class="ms-card">
+                <span class="ms-title">${escapeHtml(item.node.title)}</span>
+                <span class="ms-copy">${leaves.length} 个子任务 · ${done} 完成</span>
+              </span>
+            </button>
+          `;
+        }).join("");
+      }
+
+      function renderMonth(items) {
+        const board = document.getElementById("board");
+        const focus = items.find((item) => item.node.task_id === state.selectedMilestoneId)?.from || new Date();
+        const year = focus.getFullYear();
+        const month = focus.getMonth();
+        const first = new Date(year, month, 1);
+        const startPad = first.getDay();
+        const days = new Date(year, month + 1, 0).getDate();
+        const marks = new Map(items.map((item) => [item.to.toDateString(), item]));
+        const cells = [];
+        for (let i = 0; i < startPad; i += 1) cells.push(`<div class="day empty"></div>`);
+        for (let day = 1; day <= days; day += 1) {
+          const date = new Date(year, month, day);
+          const hit = marks.get(date.toDateString());
+          cells.push(`<button class="day${hit ? " has-ms" : ""}" ${hit ? `data-milestone-id="${escapeHtml(hit.node.task_id)}"` : ""} type="button">${day}${hit ? `<div>${escapeHtml(hit.node.title)}</div>` : ""}</button>`);
+        }
+        board.className = "month-grid";
+        board.innerHTML = ["日", "一", "二", "三", "四", "五", "六"].map((name) => `<div class="dow">${name}</div>`).join("") + cells.join("");
+      }
+
+      function renderBoard() {
+        const items = scheduledMilestones();
+        document.getElementById("board-title").textContent = state.nav === "calendar" || state.range === "month" ? "研究月历" : "研究时间轴";
+        if (state.nav === "calendar" || state.range === "month") renderMonth(items);
+        else renderTimeline(items);
+      }
+
+      function renderSubtasks() {
+        const milestone = selectedMilestone();
+        const tasks = subtasksOf(milestone).filter(matchesSearch);
+        const selected = selectedSubtask();
+        const leaves = collectLeaves(milestone);
+        const done = leaves.filter((leaf) => leaf.status === "DONE").length;
+        document.getElementById("subtask-heading").textContent = milestone ? `${milestone.title} · 子任务` : "子任务";
+        document.getElementById("subtask-count").textContent = milestone ? `共 ${leaves.length} 项 · 已完成 ${done} 项` : "";
+        document.getElementById("subtask-list").innerHTML = tasks.length
+          ? tasks.map((node) => {
+              const kind = nodeKind(node);
+              const active = node.task_id === selected?.task_id;
+              return `<button class="subtask-item ${kind}${active ? " active" : ""}" data-subtask-id="${escapeHtml(node.task_id)}" type="button"><span class="mark"></span><span>${escapeHtml(node.title)}</span></button>`;
+            }).join("")
+          : `<div class="empty">${state.tree ? "没有匹配的任务" : "规划完成后，子任务会出现在这里。"}</div>`;
+
+        if (!selected) {
+          document.getElementById("subtask-detail").innerHTML = `<div class="empty">选择左侧子任务查看清单。</div>`;
           return;
         }
 
-        summary.innerHTML = `<strong>${escapeHtml(state.tree.title)}</strong><br />已完成 ${stats.done} / ${stats.leaves} 个下一步`;
-      }
-
-      function renderNode(node) {
-        const isLeaf = !node.children || node.children.length === 0;
-        const actions = isLeaf
-          ? `
-            <div class="tree-actions">
-              <button class="mini progress" data-task-id="${escapeHtml(node.task_id)}" data-status="IN_PROGRESS" type="button">进行中</button>
-              <button class="mini done" data-task-id="${escapeHtml(node.task_id)}" data-status="DONE" type="button">完成</button>
-              <button class="mini blocked" data-task-id="${escapeHtml(node.task_id)}" data-status="BLOCKED" type="button">受阻</button>
-            </div>
-          `
-          : "";
-
-        const children = isLeaf
-          ? ""
-          : `<div class="children">${node.children.map(renderNode).join("")}</div>`;
-
-        return `
-          <article class="tree-node">
-            <div class="tree-head">
-              <div>
-                <h3 class="tree-title">${escapeHtml(node.title)}</h3>
-                <p class="tree-desc">${escapeHtml(node.description || "暂无说明")}</p>
-              </div>
-              <span class="pill ${statusClass(node.status)}">${escapeHtml(node.status)}</span>
-            </div>
-            <div class="tree-meta">
-              <span class="pill status-pending">${Number(node.estimated_time).toFixed(1)}h</span>
-              <span class="pill status-pending">${isLeaf ? "下一步" : `${node.children.length} 个阶段`}</span>
-            </div>
-            ${actions}
-            ${children}
-          </article>
+        const checks = checklistOf(selected);
+        const due = scheduledMilestones().find((item) => item.node.task_id === milestone?.task_id);
+        document.getElementById("subtask-detail").innerHTML = `
+          <h3>${escapeHtml(selected.title)}</h3>
+          <div class="detail-meta">${nodeKind(selected) === "current" ? "进行中" : nodeKind(selected) === "done" ? "已完成" : "未开始"} · 预计 ${Number(selected.estimated_time || 0).toFixed(1)} 小时${due ? ` · 截止 ${shortDate(due.to)}` : ""}</div>
+          <p class="ms-copy">${escapeHtml(selected.description || "暂无说明")}</p>
+          <div class="checklist">
+            ${checks.map((node) => `
+              <label class="check-row${node.status === "DONE" ? " done" : ""}">
+                <input type="checkbox" data-task-id="${escapeHtml(node.task_id)}" ${node.status === "DONE" ? "checked" : ""} ${node.children && node.children.length ? "disabled" : ""} />
+                <span>${escapeHtml(node.title)}</span>
+              </label>
+            `).join("")}
+          </div>
+          <div class="detail-actions">
+            <button class="secondary" type="button" disabled title="清单由规划引擎生成">+ 添加清单项</button>
+            <button class="primary" id="save-progress" type="button">保存进度</button>
+          </div>
         `;
       }
 
-      function renderTree() {
-        treeRoot.innerHTML = state.tree
-          ? renderNode(state.tree)
-          : `<div class="empty">规划完成后，长程任务会按阶段出现在这里。</div>`;
+      function renderAll() {
+        ensureSelection();
+        renderSidebar();
+        renderHeader();
+        renderBoard();
+        renderSubtasks();
       }
 
       async function fetchTree(showErrors = false) {
@@ -464,14 +775,12 @@
           const response = await fetch("/api/v1/tasks/tree");
           if (response.status === 404) {
             state.tree = null;
-            renderStats();
-            renderTree();
+            renderAll();
             return;
           }
-          if (!response.ok) throw new Error(`无法读取路线：${response.status}`);
+          if (!response.ok) throw new Error(`无法读取课题：${response.status}`);
           state.tree = await response.json();
-          renderStats();
-          renderTree();
+          renderAll();
         } catch (error) {
           if (showErrors) showToast(error.message);
         }
@@ -482,8 +791,7 @@
           const response = await fetch("/api/v1/tasks/tree");
           if (response.ok) {
             state.tree = await response.json();
-            renderStats();
-            renderTree();
+            renderAll();
             return true;
           }
           await new Promise((resolve) => window.setTimeout(resolve, 500));
@@ -499,9 +807,8 @@
           showToast("请先写下长程目标。");
           return;
         }
-
         setBusy(true);
-        initButton.textContent = "正在拆解长程目标…";
+        initButton.textContent = "正在拆解课题…";
         try {
           const response = await fetch("/api/v1/tasks/init", {
             method: "POST",
@@ -509,12 +816,13 @@
             body: JSON.stringify({ goal, persona }),
           });
           if (!response.ok) throw new Error(`规划失败：${response.status}`);
-          showToast("已开始拆解长程目标");
+          showToast("已开始生成研究时间轴");
           await waitForTree();
+          modal.classList.remove("open");
         } catch (error) {
           showToast(error.message);
         } finally {
-          initButton.textContent = "开始规划";
+          initButton.textContent = "生成时间轴";
           setBusy(false);
         }
       }
@@ -548,14 +856,65 @@
         state.ws = socket;
       }
 
+      document.getElementById("open-modal").addEventListener("click", () => modal.classList.add("open"));
+      document.getElementById("open-modal-secondary").addEventListener("click", () => modal.classList.add("open"));
+      document.getElementById("cancel-modal").addEventListener("click", () => modal.classList.remove("open"));
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) modal.classList.remove("open");
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") modal.classList.remove("open");
+      });
       initForm.addEventListener("submit", initializePlan);
-      treeRoot.addEventListener("click", (event) => {
-        const button = event.target.closest("button[data-task-id]");
-        if (button) updateTaskStatus(button.dataset.taskId, button.dataset.status);
+
+      document.querySelectorAll("[data-nav]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.nav = button.dataset.nav;
+          document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button));
+          renderBoard();
+        });
+      });
+      document.querySelectorAll("[data-range]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.range = button.dataset.range;
+          document.querySelectorAll("[data-range]").forEach((item) => item.classList.toggle("active", item === button));
+          renderBoard();
+        });
+      });
+      document.getElementById("search").addEventListener("input", (event) => {
+        state.search = event.target.value;
+        renderSubtasks();
+      });
+      document.getElementById("board").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-milestone-id]");
+        if (!button) return;
+        state.selectedMilestoneId = button.dataset.milestoneId;
+        state.selectedSubtaskId = null;
+        renderAll();
+      });
+      document.getElementById("subtask-list").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-subtask-id]");
+        if (!button) return;
+        state.selectedSubtaskId = button.dataset.subtaskId;
+        const node = selectedSubtask();
+        renderSubtasks();
+        if (node && (!node.children || node.children.length === 0) && node.status === "PENDING") {
+          updateTaskStatus(node.task_id, "IN_PROGRESS");
+        }
+      });
+      document.getElementById("subtask-detail").addEventListener("change", (event) => {
+        const input = event.target.closest("input[data-task-id]");
+        if (!input) return;
+        updateTaskStatus(input.dataset.taskId, input.checked ? "DONE" : "PENDING");
+      });
+      document.getElementById("subtask-detail").addEventListener("click", (event) => {
+        if (event.target.id === "save-progress") {
+          fetchTree(true);
+          showToast("进度已同步");
+        }
       });
 
-      renderStats();
-      renderTree();
+      renderAll();
       fetchTree(false);
       connectWebSocket();
     </script>
