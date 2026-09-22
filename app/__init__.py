@@ -1,1 +1,1 @@
-"""SYA Task Scheduler application package."""
+"""FocusFlow desktop App backend package."""

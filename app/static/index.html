@@ -116,6 +116,12 @@
         font-weight: 600;
       }
 
+      .topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
       .search {
         width: min(280px, 36vw);
         border: 1px solid var(--line);
@@ -125,6 +131,30 @@
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='1.6' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3-3'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: 12px center;
+      }
+
+      .lang-toggle {
+        display: flex;
+        flex-shrink: 0;
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px;
+      }
+      .lang-toggle button {
+        border: 0;
+        background: transparent;
+        border-radius: 999px;
+        padding: 6px 11px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        min-width: 44px;
+      }
+      .lang-toggle button.active {
+        background: var(--surface);
+        color: var(--primary-strong);
+        box-shadow: var(--shadow);
       }
 
       .content {
@@ -426,26 +456,32 @@
   <body>
     <div class="app">
       <aside class="sidebar">
-        <button class="new-plan" id="open-modal" type="button">+ 新建规划</button>
+        <button class="new-plan" id="open-modal" type="button">+ <span data-i18n="newPlan">新建规划</span></button>
         <div>
-          <p class="nav-label">导航</p>
+          <p class="nav-label" data-i18n="nav">导航</p>
           <div class="nav-list">
-            <button class="nav-item active" data-nav="timeline" type="button">时间轴</button>
-            <button class="nav-item" data-nav="calendar" type="button">日历</button>
+            <button class="nav-item active" data-nav="timeline" type="button" data-i18n="timeline">时间轴</button>
+            <button class="nav-item" data-nav="calendar" type="button" data-i18n="calendar">日历</button>
           </div>
         </div>
         <div>
-          <p class="section-label">我的课题</p>
+          <p class="section-label" data-i18n="myProjects">我的课题</p>
           <div class="project-list" id="project-list"></div>
-          <button class="ghost" id="open-modal-secondary" type="button">+ 新建课题</button>
+          <button class="ghost" id="open-modal-secondary" type="button">+ <span data-i18n="newProject">新建课题</span></button>
         </div>
         <div class="sidebar-footer" id="sidebar-footer">本学期 · 0 个进行中课题</div>
       </aside>
 
       <section class="workspace">
         <header class="topbar">
-          <div class="brand">科研任务规划</div>
-          <input class="search" id="search" type="search" placeholder="搜索任务..." aria-label="搜索任务" />
+          <div class="brand" data-i18n="brand">科研任务规划</div>
+          <div class="topbar-actions">
+            <input class="search" id="search" type="search" data-i18n-placeholder="searchPlaceholder" data-i18n-aria="searchAria" placeholder="搜索任务..." aria-label="搜索任务" />
+            <div class="lang-toggle" id="lang-toggle" role="group" aria-label="语言 / Language">
+              <button type="button" data-lang="zh" class="active">中文</button>
+              <button type="button" data-lang="en">EN</button>
+            </div>
+          </div>
         </header>
 
         <main class="content">
@@ -465,16 +501,16 @@
               <div>
                 <strong id="board-title">研究时间轴</strong>
                 <div class="legend">
-                  <span><i class="dot-done"></i>已完成</span>
-                  <span><i class="dot-now"></i>进行中</span>
-                  <span><i class="dot-todo"></i>未开始</span>
+                  <span><i class="dot-done"></i><span data-i18n="legendDone">已完成</span></span>
+                  <span><i class="dot-now"></i><span data-i18n="legendNow">进行中</span></span>
+                  <span><i class="dot-todo"></i><span data-i18n="legendTodo">未开始</span></span>
                 </div>
               </div>
               <div>
                 <div class="meta" id="range-label"></div>
                 <div class="range-toggle">
-                  <button class="active" data-range="week" type="button">周</button>
-                  <button data-range="month" type="button">月</button>
+                  <button class="active" data-range="week" type="button" data-i18n="week">周</button>
+                  <button data-range="month" type="button" data-i18n="month">月</button>
                 </div>
               </div>
             </div>
@@ -483,7 +519,7 @@
 
           <section class="card subtask-card">
             <div class="card-head">
-              <strong id="subtask-heading">子任务</strong>
+              <strong id="subtask-heading" data-i18n="subtasks">子任务</strong>
               <span class="meta" id="subtask-count"></span>
             </div>
             <div class="subtask-layout">
@@ -497,23 +533,23 @@
 
     <div class="modal" id="modal" role="dialog" aria-labelledby="modal-title">
       <form class="modal-card stack" id="init-form">
-        <h2 id="modal-title">新建规划</h2>
-        <p class="empty" style="padding: 0">输入一个跨阶段的研究目标，生成时间轴和下一步清单。</p>
+        <h2 id="modal-title" data-i18n="newPlan">新建规划</h2>
+        <p class="empty" data-i18n="modalIntro" style="padding: 0">输入一个跨阶段的研究目标，生成时间轴和下一步清单。</p>
         <label>
-          长程目标
-          <textarea id="goal" name="goal" required placeholder="例如：用最小 GPU 资源微调长程 LLM 智能体">Fine-Tuning Long-Horizon LLM Agents with Minimal GPU Requirements</textarea>
+          <span data-i18n="longGoal">长程目标</span>
+          <textarea id="goal" name="goal" required data-i18n-placeholder="goalPlaceholder" placeholder="例如：用最小 GPU 资源微调长程 LLM 智能体">Fine-Tuning Long-Horizon LLM Agents with Minimal GPU Requirements</textarea>
         </label>
         <label>
-          规划粒度
+          <span data-i18n="planningGrain">规划粒度</span>
           <select id="persona" name="persona">
-            <option value="macro">远距里程碑</option>
-            <option value="balanced" selected>均衡推进</option>
-            <option value="micro">近距拆细</option>
+            <option value="macro" data-i18n="personaMacro">远距里程碑</option>
+            <option value="balanced" selected data-i18n="personaBalanced">均衡推进</option>
+            <option value="micro" data-i18n="personaMicro">近距拆细</option>
           </select>
         </label>
         <div class="detail-actions">
-          <button class="secondary" id="cancel-modal" type="button">取消</button>
-          <button class="primary" id="init-button" type="submit">生成时间轴</button>
+          <button class="secondary" id="cancel-modal" type="button" data-i18n="cancel">取消</button>
+          <button class="primary" id="init-button" type="submit" data-i18n="generateTimeline">生成时间轴</button>
         </div>
       </form>
     </div>
@@ -521,6 +557,125 @@
     <div id="toast" class="toast" aria-live="polite"></div>
 
     <script>
+      const COPY = {
+        zh: {
+          brand: "科研任务规划",
+          newPlan: "新建规划",
+          nav: "导航",
+          timeline: "时间轴",
+          calendar: "日历",
+          myProjects: "我的课题",
+          newProject: "新建课题",
+          sidebarFooter: "本学期 · {count} 个进行中课题",
+          noProjects: "暂无课题",
+          searchPlaceholder: "搜索任务...",
+          searchAria: "搜索任务",
+          language: "语言",
+          noProjectYet: "还没有课题",
+          emptyMeta: "写下长程目标后生成研究时间轴",
+          researchProject: "研究课题",
+          span: "周期",
+          overall: "整体进度",
+          boardTimeline: "研究时间轴",
+          boardCalendar: "研究月历",
+          legendDone: "已完成",
+          legendNow: "进行中",
+          legendTodo: "未开始",
+          week: "周",
+          month: "月",
+          subtasks: "子任务",
+          subtaskHeading: "{title} · 子任务",
+          subtaskCount: "共 {total} 项 · 已完成 {done} 项",
+          emptyBoard: "规划完成后，研究阶段会按时间出现在这里。",
+          milestoneCopy: "{total} 个子任务 · {done} 完成",
+          noMatch: "没有匹配的任务",
+          emptySubtasks: "规划完成后，子任务会出现在这里。",
+          pickSubtask: "选择左侧子任务查看清单。",
+          noNotes: "暂无说明",
+          hours: "预计 {hours} 小时",
+          due: "截止 {date}",
+          addItem: "+ 添加清单项",
+          addItemTitle: "清单由规划引擎生成",
+          saveProgress: "保存进度",
+          modalIntro: "输入一个跨阶段的研究目标，生成时间轴和下一步清单。",
+          longGoal: "长程目标",
+          goalPlaceholder: "例如：用最小 GPU 资源微调长程 LLM 智能体",
+          planningGrain: "规划粒度",
+          personaMacro: "远距里程碑",
+          personaBalanced: "均衡推进",
+          personaMicro: "近距拆细",
+          cancel: "取消",
+          generateTimeline: "生成时间轴",
+          needGoal: "请先写下长程目标。",
+          decomposing: "正在拆解课题…",
+          startedTimeline: "已开始生成研究时间轴",
+          planFailed: "规划失败：{status}",
+          loadFailed: "无法读取课题：{status}",
+          updateFailed: "更新失败：{status}",
+          stepSaved: "已记录这一步",
+          progressSynced: "进度已同步",
+          weekdays: ["日", "一", "二", "三", "四", "五", "六"],
+        },
+        en: {
+          brand: "Research Planner",
+          newPlan: "New plan",
+          nav: "Navigate",
+          timeline: "Timeline",
+          calendar: "Calendar",
+          myProjects: "My projects",
+          newProject: "New project",
+          sidebarFooter: "This term · {count} active project(s)",
+          noProjects: "No projects yet",
+          searchPlaceholder: "Search tasks...",
+          searchAria: "Search tasks",
+          language: "Language",
+          noProjectYet: "No project yet",
+          emptyMeta: "Write a long-horizon goal to generate a research timeline",
+          researchProject: "Research project",
+          span: "Span",
+          overall: "Overall",
+          boardTimeline: "Research timeline",
+          boardCalendar: "Research calendar",
+          legendDone: "Done",
+          legendNow: "In progress",
+          legendTodo: "Not started",
+          week: "Week",
+          month: "Month",
+          subtasks: "Subtasks",
+          subtaskHeading: "{title} · Subtasks",
+          subtaskCount: "{total} items · {done} done",
+          emptyBoard: "After planning, research stages appear here on a timeline.",
+          milestoneCopy: "{total} subtasks · {done} done",
+          noMatch: "No matching tasks",
+          emptySubtasks: "After planning, subtasks appear here.",
+          pickSubtask: "Select a subtask to see its checklist.",
+          noNotes: "No notes yet",
+          hours: "Est. {hours} h",
+          due: "Due {date}",
+          addItem: "+ Add item",
+          addItemTitle: "Checklist is generated by the planner",
+          saveProgress: "Save progress",
+          modalIntro: "Enter a multi-stage research goal to generate a timeline and next-step checklist.",
+          longGoal: "Long-horizon goal",
+          goalPlaceholder: "e.g. Fine-tune long-horizon LLM agents with minimal GPU",
+          planningGrain: "Planning grain",
+          personaMacro: "Distant milestones",
+          personaBalanced: "Balanced",
+          personaMicro: "Fine-grained",
+          cancel: "Cancel",
+          generateTimeline: "Generate timeline",
+          needGoal: "Write a long-horizon goal first.",
+          decomposing: "Breaking down the project…",
+          startedTimeline: "Generating the research timeline",
+          planFailed: "Planning failed: {status}",
+          loadFailed: "Could not load project: {status}",
+          updateFailed: "Update failed: {status}",
+          stepSaved: "Saved this step",
+          progressSynced: "Progress synced",
+          weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+        },
+      };
+
       const state = {
         tree: null,
         ws: null,
@@ -530,12 +685,52 @@
         selectedMilestoneId: null,
         selectedSubtaskId: null,
         search: "",
+        locale: window.localStorage.getItem("focusflow.locale") === "en" ? "en" : "zh",
       };
 
       const toast = document.getElementById("toast");
       const modal = document.getElementById("modal");
       const initForm = document.getElementById("init-form");
       const initButton = document.getElementById("init-button");
+
+      function t(key, vars) {
+        const table = COPY[state.locale] || COPY.zh;
+        let text = table[key];
+        if (text == null) text = COPY.zh[key];
+        if (text == null) return key;
+        if (Array.isArray(text)) return text;
+        if (vars) {
+          Object.entries(vars).forEach(([name, value]) => {
+            text = String(text).replaceAll(`{${name}}`, String(value));
+          });
+        }
+        return text;
+      }
+
+      function applyStaticCopy() {
+        document.documentElement.lang = state.locale === "en" ? "en" : "zh-CN";
+        document.title = t("brand");
+        document.getElementById("lang-toggle").setAttribute("aria-label", t("language"));
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          el.textContent = t(el.dataset.i18n);
+        });
+        document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+          el.placeholder = t(el.dataset.i18nPlaceholder);
+        });
+        document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+          el.setAttribute("aria-label", t(el.dataset.i18nAria));
+        });
+        document.querySelectorAll("[data-lang]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.lang === state.locale);
+        });
+      }
+
+      function setLocale(locale) {
+        state.locale = locale === "en" ? "en" : "zh";
+        window.localStorage.setItem("focusflow.locale", state.locale);
+        applyStaticCopy();
+        renderAll();
+      }
 
       function escapeHtml(value) {
         return String(value)
@@ -646,10 +841,10 @@
 
       function renderSidebar() {
         const count = state.tree ? 1 : 0;
-        document.getElementById("sidebar-footer").textContent = `本学期 · ${count} 个进行中课题`;
+        document.getElementById("sidebar-footer").textContent = t("sidebarFooter", { count });
         document.getElementById("project-list").innerHTML = state.tree
           ? `<button class="project-item active" type="button">${escapeHtml(state.tree.title)}</button>`
-          : `<div class="empty" style="padding: 8px 12px">暂无课题</div>`;
+          : `<div class="empty" style="padding: 8px 12px">${escapeHtml(t("noProjects"))}</div>`;
       }
 
       function renderHeader() {
@@ -659,10 +854,10 @@
         const schedule = scheduledMilestones();
         const from = schedule[0]?.from;
         const to = schedule.at(-1)?.to;
-        document.getElementById("project-title").textContent = state.tree ? state.tree.title : "还没有课题";
+        document.getElementById("project-title").textContent = state.tree ? state.tree.title : t("noProjectYet");
         document.getElementById("project-meta").innerHTML = state.tree
-          ? `<span class="chip">研究课题</span><span>周期 ${formatDate(from)} - ${formatDate(to)}</span><span>整体进度 ${Math.round(ratio * 100)}%</span>`
-          : "写下长程目标后生成研究时间轴";
+          ? `<span class="chip">${escapeHtml(t("researchProject"))}</span><span>${escapeHtml(t("span"))} ${formatDate(from)} - ${formatDate(to)}</span><span>${escapeHtml(t("overall"))} ${Math.round(ratio * 100)}%</span>`
+          : escapeHtml(t("emptyMeta"));
         document.getElementById("progress-bar").style.width = `${Math.round(ratio * 100)}%`;
         document.getElementById("progress-label").textContent = `${Math.round(ratio * 100)}%`;
         if (from && to) document.getElementById("range-label").textContent = `${formatDate(from)} - ${formatDate(to)}`;
@@ -671,7 +866,7 @@
       function renderTimeline(items) {
         const board = document.getElementById("board");
         if (!items.length) {
-          board.innerHTML = `<div class="empty">规划完成后，研究阶段会按时间出现在这里。</div>`;
+          board.innerHTML = `<div class="empty">${escapeHtml(t("emptyBoard"))}</div>`;
           return;
         }
         board.style.setProperty("--cols", String(items.length));
@@ -686,7 +881,7 @@
               <span class="node">${item.kind === "done" ? "✓" : ""}</span>
               <span class="ms-card">
                 <span class="ms-title">${escapeHtml(item.node.title)}</span>
-                <span class="ms-copy">${leaves.length} 个子任务 · ${done} 完成</span>
+                <span class="ms-copy">${escapeHtml(t("milestoneCopy", { total: leaves.length, done }))}</span>
               </span>
             </button>
           `;
@@ -710,12 +905,12 @@
           cells.push(`<button class="day${hit ? " has-ms" : ""}" ${hit ? `data-milestone-id="${escapeHtml(hit.node.task_id)}"` : ""} type="button">${day}${hit ? `<div>${escapeHtml(hit.node.title)}</div>` : ""}</button>`);
         }
         board.className = "month-grid";
-        board.innerHTML = ["日", "一", "二", "三", "四", "五", "六"].map((name) => `<div class="dow">${name}</div>`).join("") + cells.join("");
+        board.innerHTML = t("weekdays").map((name) => `<div class="dow">${escapeHtml(name)}</div>`).join("") + cells.join("");
       }
 
       function renderBoard() {
         const items = scheduledMilestones();
-        document.getElementById("board-title").textContent = state.nav === "calendar" || state.range === "month" ? "研究月历" : "研究时间轴";
+        document.getElementById("board-title").textContent = state.nav === "calendar" || state.range === "month" ? t("boardCalendar") : t("boardTimeline");
         if (state.nav === "calendar" || state.range === "month") renderMonth(items);
         else renderTimeline(items);
       }
@@ -726,27 +921,29 @@
         const selected = selectedSubtask();
         const leaves = collectLeaves(milestone);
         const done = leaves.filter((leaf) => leaf.status === "DONE").length;
-        document.getElementById("subtask-heading").textContent = milestone ? `${milestone.title} · 子任务` : "子任务";
-        document.getElementById("subtask-count").textContent = milestone ? `共 ${leaves.length} 项 · 已完成 ${done} 项` : "";
+        document.getElementById("subtask-heading").textContent = milestone ? t("subtaskHeading", { title: milestone.title }) : t("subtasks");
+        document.getElementById("subtask-count").textContent = milestone ? t("subtaskCount", { total: leaves.length, done }) : "";
         document.getElementById("subtask-list").innerHTML = tasks.length
           ? tasks.map((node) => {
               const kind = nodeKind(node);
               const active = node.task_id === selected?.task_id;
               return `<button class="subtask-item ${kind}${active ? " active" : ""}" data-subtask-id="${escapeHtml(node.task_id)}" type="button"><span class="mark"></span><span>${escapeHtml(node.title)}</span></button>`;
             }).join("")
-          : `<div class="empty">${state.tree ? "没有匹配的任务" : "规划完成后，子任务会出现在这里。"}</div>`;
+          : `<div class="empty">${escapeHtml(state.tree ? t("noMatch") : t("emptySubtasks"))}</div>`;
 
         if (!selected) {
-          document.getElementById("subtask-detail").innerHTML = `<div class="empty">选择左侧子任务查看清单。</div>`;
+          document.getElementById("subtask-detail").innerHTML = `<div class="empty">${escapeHtml(t("pickSubtask"))}</div>`;
           return;
         }
 
         const checks = checklistOf(selected);
         const due = scheduledMilestones().find((item) => item.node.task_id === milestone?.task_id);
+        const statusLabel = nodeKind(selected) === "current" ? t("legendNow") : nodeKind(selected) === "done" ? t("legendDone") : t("legendTodo");
+        const dueLabel = due ? t("due", { date: shortDate(due.to) }) : "";
         document.getElementById("subtask-detail").innerHTML = `
           <h3>${escapeHtml(selected.title)}</h3>
-          <div class="detail-meta">${nodeKind(selected) === "current" ? "进行中" : nodeKind(selected) === "done" ? "已完成" : "未开始"} · 预计 ${Number(selected.estimated_time || 0).toFixed(1)} 小时${due ? ` · 截止 ${shortDate(due.to)}` : ""}</div>
-          <p class="ms-copy">${escapeHtml(selected.description || "暂无说明")}</p>
+          <div class="detail-meta">${escapeHtml(statusLabel)} · ${escapeHtml(t("hours", { hours: Number(selected.estimated_time || 0).toFixed(1) }))}${dueLabel ? ` · ${escapeHtml(dueLabel)}` : ""}</div>
+          <p class="ms-copy">${escapeHtml(selected.description || t("noNotes"))}</p>
           <div class="checklist">
             ${checks.map((node) => `
               <label class="check-row${node.status === "DONE" ? " done" : ""}">
@@ -756,8 +953,8 @@
             `).join("")}
           </div>
           <div class="detail-actions">
-            <button class="secondary" type="button" disabled title="清单由规划引擎生成">+ 添加清单项</button>
-            <button class="primary" id="save-progress" type="button">保存进度</button>
+            <button class="secondary" type="button" disabled title="${escapeHtml(t("addItemTitle"))}">${escapeHtml(t("addItem"))}</button>
+            <button class="primary" id="save-progress" type="button">${escapeHtml(t("saveProgress"))}</button>
           </div>
         `;
       }
@@ -778,7 +975,7 @@
             renderAll();
             return;
           }
-          if (!response.ok) throw new Error(`无法读取课题：${response.status}`);
+          if (!response.ok) throw new Error(t("loadFailed", { status: response.status }));
           state.tree = await response.json();
           renderAll();
         } catch (error) {
@@ -804,25 +1001,25 @@
         const goal = document.getElementById("goal").value.trim();
         const persona = document.getElementById("persona").value;
         if (!goal) {
-          showToast("请先写下长程目标。");
+          showToast(t("needGoal"));
           return;
         }
         setBusy(true);
-        initButton.textContent = "正在拆解课题…";
+        initButton.textContent = t("decomposing");
         try {
           const response = await fetch("/api/v1/tasks/init", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ goal, persona }),
           });
-          if (!response.ok) throw new Error(`规划失败：${response.status}`);
-          showToast("已开始生成研究时间轴");
+          if (!response.ok) throw new Error(t("planFailed", { status: response.status }));
+          showToast(t("startedTimeline"));
           await waitForTree();
           modal.classList.remove("open");
         } catch (error) {
           showToast(error.message);
         } finally {
-          initButton.textContent = "生成时间轴";
+          initButton.textContent = t("generateTimeline");
           setBusy(false);
         }
       }
@@ -834,8 +1031,8 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status }),
           });
-          if (!response.ok) throw new Error(`更新失败：${response.status}`);
-          showToast("已记录这一步");
+          if (!response.ok) throw new Error(t("updateFailed", { status: response.status }));
+          showToast(t("stepSaved"));
           window.setTimeout(() => fetchTree(false), 200);
         } catch (error) {
           showToast(error.message);
@@ -856,6 +1053,9 @@
         state.ws = socket;
       }
 
+      document.querySelectorAll("[data-lang]").forEach((button) => {
+        button.addEventListener("click", () => setLocale(button.dataset.lang));
+      });
       document.getElementById("open-modal").addEventListener("click", () => modal.classList.add("open"));
       document.getElementById("open-modal-secondary").addEventListener("click", () => modal.classList.add("open"));
       document.getElementById("cancel-modal").addEventListener("click", () => modal.classList.remove("open"));
@@ -910,10 +1110,11 @@
       document.getElementById("subtask-detail").addEventListener("click", (event) => {
         if (event.target.id === "save-progress") {
           fetchTree(true);
-          showToast("进度已同步");
+          showToast(t("progressSynced"));
         }
       });
 
+      applyStaticCopy();
       renderAll();
       fetchTree(false);
       connectWebSocket();

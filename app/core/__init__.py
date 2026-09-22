@@ -1,1 +1,1 @@
-"""Core domain engines and orchestration primitives."""
+"""Core infrastructure: config, event bus, in-memory store, LLM boundary."""

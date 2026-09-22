@@ -19,4 +19,4 @@ select_python() {
 
 PYTHON_BIN="$(select_python)"
 cd "${ROOT_DIR}"
-PYTHONPATH="${ROOT_DIR}" "${PYTHON_BIN}" -m unittest discover -s tests -p 'test*.py' -v
+PYTHONPATH="${ROOT_DIR}" "${PYTHON_BIN}" -m unittest discover -s tests -t . -p 'test*.py' -v

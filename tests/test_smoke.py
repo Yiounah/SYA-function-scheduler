@@ -52,6 +52,8 @@ class FocusFlowAppTests(unittest.TestCase):
         self.assertIn("新建规划", response.text)
         self.assertIn("时间轴", response.text)
         self.assertIn("长程目标", response.text)
+        self.assertIn('data-lang="en"', response.text)
+        self.assertIn("Research Planner", response.text)
         self.assertNotIn("Live Event Stream", response.text)
         self.assertNotIn("FocusFlow Planner", response.text)
 

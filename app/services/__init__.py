@@ -1,1 +1,1 @@
-"""Application services for state management and real-time sync."""
+"""Application services. Routers stay thin; services own App-facing workflows."""

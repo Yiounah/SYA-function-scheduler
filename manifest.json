@@ -23,7 +23,8 @@
     "task-storage",
     "hierarchical-task-tree",
     "rolling-wave-planning",
-    "adaptive-replanning"
+    "adaptive-replanning",
+    "voyage-runtime"
   ],
   "events": [
     "task.created",

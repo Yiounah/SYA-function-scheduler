@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.agents.voyage.checks import TaskExecutionSample
 from app.models.domain_events import DomainEvent, ReplanStrategy
 from app.models.task_tree import TERMINAL_STATUSES, TaskNode, TaskStatus
-from app.utils.metrics_evaluator import TaskExecutionSample
+from app.models.voyage import Voyage, VoyagePhase
 
 T = TypeVar("T")
 
@@ -22,6 +24,7 @@ class StatusTransition(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     task_id: str = Field(min_length=1)
+    parent_id: str | None = None
     old_status: TaskStatus
     new_status: TaskStatus
     is_leaf: bool
@@ -38,6 +41,7 @@ class MemoryStore:
 
         self._goal: str | None = None
         self._persona: str | None = None
+        self._voyage: Voyage | None = None
         self._task_tree: TaskNode | None = None
 
         self._event_history: deque[DomainEvent] = deque(maxlen=event_history_maxlen)
@@ -48,6 +52,33 @@ class MemoryStore:
         async with self._lock:
             self._goal = goal
             self._persona = persona
+
+    async def start_voyage(self, *, goal: str, persona: str) -> Voyage:
+        """Open a new Voyage for one long-horizon 课题."""
+        async with self._lock:
+            self._goal = goal
+            self._persona = persona
+            self._voyage = Voyage(goal=goal, persona=persona, phase=VoyagePhase.PLANNING)
+            return self._voyage.model_copy(deep=True)
+
+    async def set_voyage_phase(
+        self,
+        phase: VoyagePhase,
+        *,
+        human_gate_reason: str | None = None,
+    ) -> None:
+        """Advance the current Voyage state machine."""
+        async with self._lock:
+            if self._voyage is None:
+                return
+            self._voyage.phase = phase
+            self._voyage.human_gate_reason = human_gate_reason
+            self._voyage.updated_at = datetime.now(timezone.utc)
+
+    async def get_voyage(self) -> Voyage | None:
+        """Return a snapshot of the active Voyage, if any."""
+        async with self._lock:
+            return self._voyage.model_copy(deep=True) if self._voyage else None
 
     async def get_goal_context(self) -> tuple[str | None, str | None]:
         """Read current goal and persona context."""
@@ -123,6 +154,7 @@ class MemoryStore:
 
             return StatusTransition(
                 task_id=node.task_id,
+                parent_id=node.parent_id,
                 old_status=old_status,
                 new_status=node.status,
                 is_leaf=node.is_leaf,

@@ -72,6 +72,7 @@ class TaskStatusUpdatedPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     task_id: str = Field(min_length=1)
+    parent_id: str | None = None
     old_status: TaskStatus
     new_status: TaskStatus
     is_leaf: bool
