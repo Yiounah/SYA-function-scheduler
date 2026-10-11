@@ -1,0 +1,35 @@
+# Team overrides. This file survives BMAD reinstalls and deep-merges over
+# installer-managed _bmad/config.toml.
+
+[core]
+project_name = "FocusFlow"
+
+[modules.bmm]
+project_knowledge = "{project-root}/docs/bmad-project-knowledge"
+
+[modules.tea]
+test_stack_type = "fullstack"
+ci_platform = "github-actions"
+test_framework = "playwright"
+tea_use_playwright_utils = false
+tea_use_pactjs_utils = false
+tea_pact_mcp = "none"
+risk_threshold = "p1"
+
+[agents.bmad-agent-analyst]
+description = "Separates FocusFlow product intent from the scheduler contract and current implementation evidence, and flags contradictions instead of blending them."
+
+[agents.bmad-agent-pm]
+description = "Maintains accepted FocusFlow criteria, scheduler requirement provenance, and evidence-backed implementation status."
+
+[agents.bmad-agent-ux-designer]
+description = "Designs the FocusFlow desktop journey for long-horizon planning, including empty, loading, error, and recovery states."
+
+[agents.bmad-agent-architect]
+description = "Protects the same-origin UI boundary, local-http manifest contract, Voyage layering, and local-data privacy."
+
+[agents.bmad-agent-dev]
+description = "Implements approved FocusFlow acceptance criteria through the FastAPI service and Electron shell, with tests at the correct evidence level."
+
+[agents.bmad-tea]
+description = "Builds risk-based coverage across static checks, source-contract tests, packaged Electron, and OS or model-provider checks."

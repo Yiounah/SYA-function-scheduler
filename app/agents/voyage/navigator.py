@@ -51,7 +51,11 @@ class Navigator:
         payload = NewTaskRequestPayload.model_validate(event.payload)
         persona = resolve_persona(payload.persona)
 
-        await self._memory_store.start_voyage(goal=payload.goal, persona=persona.persona_id)
+        await self._memory_store.start_voyage(
+            goal=payload.goal,
+            persona=persona.persona_id,
+            deadline_days=payload.deadline_days,
+        )
         await self._memory_store.set_voyage_phase(VoyagePhase.PLANNING)
 
         context = self._assemble_intent_context(goal=payload.goal, persona=persona)
@@ -149,6 +153,7 @@ class Navigator:
                 "hierarchy_depth_min": 2,
                 "prefer_milestone_parents": True,
                 "shape": "课题 → 阶段 → 子任务 → 清单",
+                "task_language": "English",
             },
         }
 
@@ -177,9 +182,10 @@ class Navigator:
             },
             "target_subtree": target_subtree,
             "instruction": (
-                "Return replacement children for pending work only. "
-                "Keep completed and blocked nodes. "
-                "Keep task titles executable and estimated_time realistic."
+                "Return replacement children for unfinished pending work of this project only. "
+                "Do not recreate completed items, and do not include any other project. "
+                "Keep task titles executable and estimated_time realistic. "
+                "Write every replacement title and description in English."
             ),
         }
 

@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "bmad": {
+    "version": "6.12.0",
+    "npmIntegrity": "sha512-gbbHo32TxCPwo4Yy70kqykFRwN5UdYqfnDKTsKAsF9m5qtLeoiCgEawj/LuzLBHLrYA0WTOyL/XWtXpgyDonMQ==",
+    "installedFiles": [
+      "_config/bmad-help.csv",
+      "_config/files-manifest.csv",
+      "_config/manifest.yaml",
+      "_config/skill-manifest.csv",
+      "bmm/config.yaml",
+      "bmm/module-help.csv",
+      "bmm/v6-shims/README.md",
+      "config.toml",
+      "core/config.yaml",
+      "core/module-help.csv",
+      "core/v6-shims/README.md",
+      "custom/.gitignore",
+      "custom/bmad-agent-analyst.toml",
+      "custom/bmad-agent-architect.toml",
+      "custom/bmad-agent-dev.toml",
+      "custom/bmad-agent-pm.toml",
+      "custom/bmad-agent-ux-designer.toml",
+      "custom/bmad-tea.toml",
+      "custom/config.toml",
+      "render/.gitignore",
+      "scripts/config_utils.py",
+      "scripts/memlog.py",
+      "scripts/render_skill.py",
+      "scripts/resolve_config.py",
+      "scripts/resolve_customization.py",
+      "tea/config.yaml",
+      "tea/module-help.csv"
+    ]
+  },
+  "tea": {
+    "version": "v1.24.0",
+    "commit": "7ba2130193c473b53d2e323b4da9a80697eef88e",
+    "repository": "https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise.git"
+  },
+  "opencode": {
+    "version": "1.18.29",
+    "npmIntegrity": "sha512-syIDVwlrYTgTOXzZe9SkInJWethbq6l3SNC762UeXyO0a9V0wGfd+U4yACvppwNBnhIsl0j2QPYYCyLpNaSomg==",
+    "skillCount": 39,
+    "skillFileCount": 936,
+    "skillPayloadSha256": "8f6ab772a188affeb309e2fcd983efc40a7165b2a63e241e9c707947633ab327",
+    "skills": [
+      "bmad-advanced-elicitation",
+      "bmad-agent-analyst",
+      "bmad-agent-architect",
+      "bmad-agent-dev",
+      "bmad-agent-pm",
+      "bmad-agent-ux-designer",
+      "bmad-architecture",
+      "bmad-brainstorming",
+      "bmad-build",
+      "bmad-build-auto",
+      "bmad-code-review",
+      "bmad-correct-course",
+      "bmad-create-epics-and-stories",
+      "bmad-customize",
+      "bmad-deep-recon",
+      "bmad-forge-idea",
+      "bmad-help",
+      "bmad-party-mode",
+      "bmad-prd",
+      "bmad-prfaq",
+      "bmad-product-brief",
+      "bmad-project-context",
+      "bmad-qa-generate-e2e-tests",
+      "bmad-retrospective",
+      "bmad-review",
+      "bmad-spec",
+      "bmad-sprint-planning",
+      "bmad-tea",
+      "bmad-teach-me-testing",
+      "bmad-testarch-atdd",
+      "bmad-testarch-automate",
+      "bmad-testarch-ci",
+      "bmad-testarch-framework",
+      "bmad-testarch-nfr",
+      "bmad-testarch-test-design",
+      "bmad-testarch-test-review",
+      "bmad-testarch-trace",
+      "bmad-ux",
+      "bmad-walkthrough"
+    ]
+  },
+  "githubActions": {
+    "checkout": {
+      "version": "v4",
+      "commit": "11d5960a326750d5838078e36cf38b85af677262"
+    },
+    "setupNode": {
+      "version": "v4",
+      "commit": "49933ea5288caeca8642d1e84afbd3f7d6820020"
+    },
+    "setupUv": {
+      "version": "v7",
+      "commit": "37802adc94f370d6bfd71619e3f0bf239e1f3b78",
+      "toolVersion": "0.12.10"
+    },
+    "uploadArtifact": {
+      "version": "v4",
+      "commit": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    }
+  },
+  "verification": {
+    "pyyamlVersion": "6.0.2"
+  },
+  "product": {
+    "name": "FocusFlow",
+    "moduleId": "scheduler",
+    "contracts": [
+      "api.openapi.json",
+      "manifest.json",
+      "module.json",
+      "config.example.json",
+      "package.json"
+    ],
+    "acceptedSpecs": [
+      "docs/research-timeline-ui/SPEC.md",
+      "docs/research-timeline-ui/ARCHITECTURE.md",
+      "docs/research-timeline-ui/DESIGN.md",
+      "docs/research-timeline-ui/EXPERIENCE.md",
+      "docs/research-timeline-ui/EVIDENCE.md"
+    ],
+    "acceptedRequirementIds": ["SCH-001", "SCH-002", "SCH-003"],
+    "localCapabilities": ["CAP-1", "CAP-2", "CAP-3", "CAP-4", "CAP-5"]
+  }
+}

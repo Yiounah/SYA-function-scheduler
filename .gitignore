@@ -29,3 +29,10 @@ release/
 desktop-runtime/
 .desktop-build/
 *.egg-info/
+
+# Agent SDLC local state and generated artifacts
+_bmad-output/
+_bmad/config.user.toml
+_bmad/**/*.bak
+_bmad-custom-backup-temp/
+_bmad-modified-backup-temp/

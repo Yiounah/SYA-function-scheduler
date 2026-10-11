@@ -1,0 +1,8 @@
+[agent]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-project-knowledge/README.md",
+]
+principles = [
+  "Label evidence as static, service-or-source, desktop-dev, packaged-Electron, or OS-and-provider; never promote a lower level to a higher one.",
+  "Report exclusions, skips, and unavailable model credentials explicitly.",
+]

@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from app.agents.voyage.engine import AppContainer
-from app.api.schemas import EventAckResponse, InitTaskRequest, UpdateTaskStatusRequest
-from app.models.domain_events import DomainEvent, EventType, NewTaskRequestPayload, StatusUpdatePayload
+from app.api.schemas import (
+    EventAckResponse,
+    InitTaskRequest,
+    TranslateRequest,
+    TranslateResponse,
+    UpdateTaskStatusRequest,
+)
+from app.models.domain_events import (
+    DomainEvent,
+    EventType,
+    NewTaskRequestPayload,
+    ReplanDecisionPayload,
+    StatusUpdatePayload,
+)
 
-
+# 这里的publish_init_task是用来发布一个新任务请求的,用来真正的发布事件
 async def publish_init_task(
     body: InitTaskRequest,
     container: AppContainer,
@@ -18,10 +30,53 @@ async def publish_init_task(
     event = DomainEvent.build(
         event_type=EventType.NEW_TASK_REQUEST,
         source=source,
-        payload_model=NewTaskRequestPayload(goal=body.goal, persona=body.persona),
+        payload_model=NewTaskRequestPayload(
+            goal=body.goal,
+            persona=body.persona,
+            deadline_days=body.deadline_days,
+        ),
     )
     await container.event_bus.publish(event)
     return EventAckResponse(accepted=True, event_id=event.event_id)
+
+
+async def publish_revise_task(
+    *,
+    task_id: str,
+    body: InitTaskRequest,
+    container: AppContainer,
+    source: str,
+) -> EventAckResponse:
+    """Re-split unfinished work on one project. Completed nodes stay where they are."""
+
+    await container.memory_store.update_plan_context(
+        task_id=task_id,
+        goal=body.goal,
+        persona=body.persona,
+        deadline_days=body.deadline_days,
+    )
+    event = DomainEvent.build(
+        event_type=EventType.REPLAN_FINE_GRAINED,
+        source=source,
+        payload_model=ReplanDecisionPayload(
+            target_node_id=task_id,
+            completion_rate=0.0,
+            procrastination_index=0.0,
+        ),
+    )
+    await container.event_bus.publish(event)
+    await container.event_bus.join()
+    return EventAckResponse(accepted=True, event_id=event.event_id)
+
+
+async def translate_task_copy(body: TranslateRequest, container: AppContainer) -> TranslateResponse:
+    """Translate display copy. The stored task tree is not modified."""
+
+    translated = await container.llm_gateway.translate_nodes(
+        target=body.target,
+        nodes=[node.model_dump() for node in body.nodes],
+    )
+    return TranslateResponse.model_validate({"nodes": translated})
 
 
 async def publish_status_update(

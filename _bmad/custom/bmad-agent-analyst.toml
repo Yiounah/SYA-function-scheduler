@@ -1,0 +1,7 @@
+[agent]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-project-knowledge/README.md",
+]
+principles = [
+  "Classify every claim as product intent, interface contract, implementation status, or executable evidence before reconciling sources.",
+]

@@ -1,0 +1,8 @@
+[agent]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-project-knowledge/README.md",
+]
+principles = [
+  "Keep the desktop UI on same-origin fetch and WebSocket; Electron owns process spawn and the dynamic port.",
+  "Treat the OpenAPI document, manifest, module map, and packaged runtime as separate contracts.",
+]

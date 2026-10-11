@@ -47,7 +47,7 @@ State machine: `planning → executing → verifying`. `HUMAN_GATE` is reserved;
 | UI | Task tree |
 | --- | --- |
 | 课题 | root / Voyage.goal |
-| 时间轴 / 月历节点 | `root.children` |
+| 每日 / 周时间轴 / 月历 | 同一批叶子排在系统日历上；阶段横跨自己叶子的起止日 |
 | 子任务列表 | milestone.children，若为空则里程碑自身 |
 | 清单 | subtask.children，若为空则子任务自身（必须是叶子才能 PATCH） |
 

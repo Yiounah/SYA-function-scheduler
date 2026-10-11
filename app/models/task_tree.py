@@ -134,16 +134,30 @@ class TaskNode(BaseModel):
         for child in self.children:
             child.enforce_pending_leaf_nodes()
 
-    def replace_pending_children(self, new_children: list["TaskNode"]) -> dict[str, int]:
-        """Replace only pending children while preserving completed history.
+    def keeps_finished_work(self) -> bool:
+        """True when this node or a descendant is no longer a fresh pending item."""
+        if self.status != TaskStatus.PENDING:
+            return True
+        return any(child.keeps_finished_work() for child in self.children)
 
-        This method implements the subtree merge rule for rolling-wave planning:
-        non-pending children are kept, pending children are replaced by the new
-        decomposition from the cognitive replanning stage.
+    def replace_pending_children(self, new_children: list["TaskNode"]) -> dict[str, int]:
+        """Replace pending-only branches and keep any branch with finished work.
+
+        A pending parent that still holds a completed, in-progress, blocked, or
+        skipped descendant stays. Only branches that are pending all the way
+        down are removed. New children are attached at this node.
         """
 
-        preserved_children = [child for child in self.children if child.status != TaskStatus.PENDING]
-        replaced_count = len(self.children) - len(preserved_children)
+        preserved_children: list[TaskNode] = []
+        replaced_count = 0
+        for child in self.children:
+            if child.keeps_finished_work():
+                if child.status == TaskStatus.PENDING:
+                    nested = child.replace_pending_children([])
+                    replaced_count += nested["replaced_pending_children"]
+                preserved_children.append(child)
+            else:
+                replaced_count += 1
 
         for child in new_children:
             object.__setattr__(child, "parent_id", self.task_id)

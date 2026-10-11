@@ -27,6 +27,7 @@ class AppContainer:
     sextant: Sextant
     plan_editor: PlanEditor
     ws_sync_service: WebSocketSyncService
+    llm_gateway: OpenAICompatiblePlannerGateway
 
     @property
     def cognitive_engine(self) -> Navigator:
@@ -87,4 +88,5 @@ def build_container(settings: Settings) -> AppContainer:
         sextant=sextant,
         plan_editor=plan_editor,
         ws_sync_service=ws_sync_service,
+        llm_gateway=llm_gateway,
     )

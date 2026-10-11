@@ -1,0 +1,8 @@
+[agent]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-project-knowledge/README.md",
+]
+principles = [
+  "Map implementation and tests to an accepted spec, an existing scheduler requirement ID, or an explicit user request before expanding scope.",
+  "Do not expose service ports, credentials, filesystem access, or native APIs to the static UI.",
+]

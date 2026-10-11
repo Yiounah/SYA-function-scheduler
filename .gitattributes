@@ -1,0 +1,3 @@
+# Preserve byte-for-byte pinned upstream Agent SDLC payloads.
+.agents/skills/** -whitespace
+_bmad/** -whitespace

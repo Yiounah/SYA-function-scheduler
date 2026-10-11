@@ -44,6 +44,7 @@ class NewTaskRequestPayload(BaseModel):
 
     goal: str = Field(min_length=1)
     persona: str = Field(min_length=1)
+    deadline_days: int | None = Field(default=None, ge=1)
 
 
 class TaskTreeDraftPayload(BaseModel):

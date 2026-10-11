@@ -1,0 +1,8 @@
+[agent]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-project-knowledge/README.md",
+]
+principles = [
+  "Preserve user agency: show the next step without silently completing or deleting the user's plan.",
+  "Specify desktop empty, loading, error, and recovery states when they are in scope.",
+]

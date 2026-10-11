@@ -1,0 +1,8 @@
+[agent]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-project-knowledge/README.md",
+]
+principles = [
+  "Preserve existing requirement IDs; every new or changed requirement needs explicit acceptance criteria and provenance.",
+  "Implementation status is an evidence claim, so verify it against current code and executable tests before changing an accepted spec.",
+]

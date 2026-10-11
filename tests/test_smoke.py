@@ -48,9 +48,14 @@ class FocusFlowAppTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("科研任务规划", response.text)
+        self.assertIn("任务规划", response.text)
+        self.assertNotIn("科研任务规划", response.text)
         self.assertIn("新建规划", response.text)
-        self.assertIn("时间轴", response.text)
+        self.assertIn('data-i18n="day">日<', response.text)
+        self.assertIn('data-i18n="timeline">周<', response.text)
+        self.assertIn('data-i18n="calendar">月<', response.text)
+        self.assertIn("研究周报", response.text)
+        self.assertIn('data-nav="day"', response.text)
         self.assertIn("长程目标", response.text)
         self.assertIn('data-lang="en"', response.text)
         self.assertIn("Research Planner", response.text)
@@ -96,8 +101,8 @@ class FocusFlowAppTests(unittest.TestCase):
         final_statuses = {leaf["task_id"]: leaf["status"] for leaf in final_leaves}
 
         self.assertEqual(final_statuses[initial_leaves[0]["task_id"]], "DONE")
-        self.assertNotIn(initial_leaves[1]["task_id"], final_statuses)
-        self.assertNotIn(initial_leaves[2]["task_id"], final_statuses)
+        self.assertEqual(final_statuses[initial_leaves[1]["task_id"]], "DONE")
+        self.assertEqual(final_statuses[initial_leaves[2]["task_id"]], "DONE")
         self.assertTrue(any(task_id.endswith("-c1") for task_id in final_statuses))
         self.assertTrue(any(task_id.endswith("-c2") for task_id in final_statuses))
 

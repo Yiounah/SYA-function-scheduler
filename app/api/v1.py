@@ -5,9 +5,20 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_container
-from app.api.schemas import EventAckResponse, InitTaskRequest, UpdateTaskStatusRequest
+from app.api.schemas import (
+    EventAckResponse,
+    InitTaskRequest,
+    TranslateRequest,
+    TranslateResponse,
+    UpdateTaskStatusRequest,
+)
 from app.agents.voyage.engine import AppContainer
-from app.services.planning import publish_init_task, publish_status_update
+from app.services.planning import (
+    publish_init_task,
+    publish_revise_task,
+    publish_status_update,
+    translate_task_copy,
+)
 
 router = APIRouter()
 
@@ -20,6 +31,25 @@ async def init_task(
     """Submit a long-horizon goal and persona."""
 
     return await publish_init_task(body, container, source="app")
+
+
+@router.post("/api/v1/tasks/{task_id}/revise", response_model=EventAckResponse)
+async def revise_task(
+    task_id: str,
+    body: InitTaskRequest,
+    container: AppContainer = Depends(get_container),
+) -> EventAckResponse:
+    """Re-split unfinished work on the selected project only."""
+
+    try:
+        return await publish_revise_task(
+            task_id=task_id,
+            body=body,
+            container=container,
+            source="app",
+        )
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Project is not initialized") from exc
 
 
 @router.patch("/api/v1/tasks/{task_id}/status", response_model=EventAckResponse)
@@ -36,6 +66,37 @@ async def update_task_status(
         container=container,
         source="app",
     )
+
+
+@router.post("/api/v1/tasks/translate", response_model=TranslateResponse)
+async def translate_tasks(
+    body: TranslateRequest,
+    container: AppContainer = Depends(get_container),
+) -> TranslateResponse:
+    """Translate task wording for the current interface language."""
+
+    return await translate_task_copy(body, container)
+
+
+@router.get("/api/v1/projects")
+async def list_projects(
+    container: AppContainer = Depends(get_container),
+) -> dict:
+    """Return every concurrent 课题. Oldest first. Does not replace any of them."""
+
+    projects = await container.memory_store.list_projects()
+    return {
+        "projects": [
+            {
+                "voyage_id": project.voyage.voyage_id,
+                "goal": project.voyage.goal,
+                "persona": project.voyage.persona,
+                "deadline_days": project.voyage.deadline_days,
+                "tree": project.tree.model_dump(mode="json"),
+            }
+            for project in projects
+        ]
+    }
 
 
 @router.get("/api/v1/tasks/tree")

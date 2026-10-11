@@ -123,8 +123,76 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
             "Treat this as a long-horizon goal. Parents are multi-day or multi-week "
             "milestones; leaves are the next executable steps. Keep estimated_time in hours "
             "and produce an explicit hierarchy at least two levels deep: "
-            "课题 → 阶段 → 子任务 → 清单."
+            "课题 → 阶段 → 子任务 → 清单. "
+            "Write every title and description in English, even when the goal is not English."
         )
+
+    async def translate_nodes(self, *, target: str, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Translate task titles and descriptions. The stored plan itself stays unchanged."""
+
+        if not nodes or not self._api_key:
+            return nodes
+
+        language = "Simplified Chinese" if target == "zh" else "English"
+        system_prompt = (
+            "You translate planning tasks. Output a single JSON object only. "
+            "No markdown. Keep every task_id unchanged and do not add or remove nodes."
+        )
+        user_prompt = (
+            f"Translate each title and description into {language}. "
+            "If a field is already in that language, keep its wording. "
+            'Return {"nodes": [{"task_id", "title", "description"}]}.\n'
+            f"{json.dumps({'nodes': nodes}, ensure_ascii=False)}"
+        )
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.2,
+            "thinking": {"type": "enabled"},
+            "reasoning_effort": "low",
+            "max_tokens": 4096,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+                response = await client.post(
+                    f"{self._base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+                response.raise_for_status()
+                content = response.json()["choices"][0]["message"].get("content")
+            parsed = self._load_json_content(content or "")
+        except Exception:
+            logger.exception("Task translation failed; source wording will be kept")
+            return nodes
+
+        translated = {
+            str(item.get("task_id")): item
+            for item in parsed.get("nodes", [])
+            if isinstance(item, dict) and item.get("task_id")
+        }
+        merged: list[dict[str, Any]] = []
+        for node in nodes:
+            hit = translated.get(str(node.get("task_id")))
+            title = str(hit.get("title")).strip() if hit and hit.get("title") else ""
+            if not title:
+                merged.append(node)
+                continue
+            merged.append(
+                {
+                    "task_id": node["task_id"],
+                    "title": title,
+                    "description": str(hit.get("description") or ""),
+                }
+            )
+        return merged
 
     def _load_json_content(self, content: str) -> dict[str, Any]:
         """Parse JSON body and recover from fenced blocks when necessary."""
