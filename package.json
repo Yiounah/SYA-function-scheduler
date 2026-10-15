@@ -10,7 +10,6 @@
     "test:desktop-shell": "node --check desktop/main.cjs && node --check desktop/after-pack.cjs",
     "build": "node -e \"console.log('scheduler local-http runtime; no JS bundle')\"",
     "app:dev": "electron .",
-    "build": "node -e \"console.log('scheduler local-http runtime; no JS bundle')\"",
     "app:runtime": "scripts/build-desktop-runtime.sh",
     "app:pack:mac": "npm run app:runtime && electron-builder --mac --dir --publish=never",
     "app:dist:mac": "npm run app:runtime && electron-builder --mac --publish=never"

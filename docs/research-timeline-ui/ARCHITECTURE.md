@@ -1,7 +1,7 @@
 # Architecture
 
 status: accepted-for-implementation  
-date: 2026-09-22  
+date: 2026-10-12  
 skill: SYA-UI `bmad-architecture` invariants applied to this submodule
 
 ## Boundary
@@ -34,7 +34,7 @@ bin/scheduler-server SYA + App entry (do not rename)
 
 | Polaris | FocusFlow |
 | --- | --- |
-| Voyage | One 课题 / long-horizon goal |
+| Voyage | One 课题. The desktop keeps a list; the host still reads the active tree. |
 | Navigator | Decompose 课题 → 阶段 → 子任务 → 清单; incremental replan |
 | Helm | Record human status (PENDING / IN_PROGRESS / DONE / BLOCKED) |
 | Sextant | Completion, delay, **blocked** → fine or coarse next wave |
@@ -47,16 +47,22 @@ State machine: `planning → executing → verifying`. `HUMAN_GATE` is reserved;
 | UI | Task tree |
 | --- | --- |
 | 课题 | root / Voyage.goal |
-| 每日 / 周时间轴 / 月历 | 同一批叶子排在系统日历上；阶段横跨自己叶子的起止日 |
+| 每日 / 周 / 月 | 桌面用叶子工时、课题期限和共用工作时段算出的排期。服务端树没有日历字段。 |
 | 子任务列表 | milestone.children，若为空则里程碑自身 |
 | 清单 | subtask.children，若为空则子任务自身（必须是叶子才能 PATCH） |
 
 Blocked leaves are split into micro-tasks (`-m1…`) instead of rebuilding the tree. Completed and blocked nodes are kept; only PENDING children are replaced.
 
+## Client-owned schedule
+
+Day, week, and month views share one planner in `app/static/index.html`. It places leaves into the saved work period, skips meals, and levels concurrent projects. Actual work times, the suggested routine, and today's grain live in `localStorage`. Accepting a new routine re-runs that planner. Accepting today's grain only changes how today's unfinished rows are shown. Neither path calls revise or init.
+
 ## Unchanged contracts
 
 `GET /`, `GET /health`, `POST /api/v1/tasks/init`, `PATCH /api/v1/tasks/{id}/status`, `GET /api/v1/tasks/tree`, `WS /ws/tree`, `/api/scheduler/*`, `/manifest`.
 
+`GET /api/v1/projects` is the desktop list. The host single-tree routes still read the active project. `api.openapi.json` also publishes the planner routes other modules call: `projects.list`, `tasks.init`, `tasks.revise`, `tasks.status`, `tasks.translate`, `tasks.tree`, and `voyage.get`. A running server serves the same routes at `/docs`.
+
 ## Explicit gaps
 
-Parent PRD SCH-006 persistence and multi-project server storage are not added. Sidebar “我的课题” currently shows the single in-memory tree. Parent Dashboard IPC integration is unchanged and out of this submodule UI pass.
+Restart clears every project. There is no server-side calendar, and today's grain is not sent to the model. Parent Dashboard IPC stays outside this UI. Packaged Electron and a live model call are not claimed by the service tests.

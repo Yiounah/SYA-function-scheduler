@@ -450,6 +450,31 @@
       }
       .day-item button span { color: var(--muted); font-size: 12px; }
       .day-item.done strong { color: var(--muted); text-decoration: line-through; }
+      .day-block {
+        display: grid;
+        grid-template-columns: 108px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        padding: 12px;
+        border-radius: 14px;
+        background: color-mix(in srgb, var(--frame, #3b82f6) 8%, #f8fafc);
+        box-shadow: inset 0 0 0 2px var(--frame, transparent);
+      }
+      .day-block time { color: var(--muted); font-size: 12px; padding-top: 4px; }
+      .day-block .block-title { font-size: 13px; margin: 0 0 6px; }
+      .grain-choices { display: grid; gap: 8px; }
+      .grain-choice {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        text-align: left;
+        padding: 10px 12px;
+        color: var(--ink);
+      }
+      .grain-choice.selected {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+      }
 
       .week-board { display: grid; gap: 8px; }
       .week-head, .week-row {
@@ -728,6 +753,7 @@
           <div class="topbar-actions">
             <input class="search" id="search" type="search" data-i18n-placeholder="searchPlaceholder" data-i18n-aria="searchAria" placeholder="搜索任务..." aria-label="搜索任务" />
             <button class="schedule-button" id="open-schedule" type="button">工作时间</button>
+            <button class="schedule-button" id="open-day-grain" type="button">今日粒度</button>
             <div class="lang-toggle" id="lang-toggle" role="group" aria-label="语言 / Language">
               <button type="button" data-lang="zh" class="active">中文</button>
               <button type="button" data-lang="en">EN</button>
@@ -739,7 +765,7 @@
           <section class="card project-head">
             <div>
               <div class="title-row">
-                <h1 id="project-title">还没有课题</h1>
+              <h1 id="project-title">还没有课题</h1>
                 <button class="pill-button" id="revise-current" type="button" hidden>修改规划</button>
               </div>
               <div class="meta" id="project-meta">写下长程目标后生成研究时间轴</div>
@@ -917,6 +943,47 @@
       </div>
     </div>
 
+    <div class="modal" id="grain-modal" role="dialog" aria-modal="true" aria-labelledby="grain-title">
+      <div class="modal-card stack">
+        <h2 id="grain-title" data-i18n="dayGrain">今日粒度</h2>
+        <p class="hint" data-i18n="dayGrainHint">只调整今天的清单跨度，不改课题的规划粒度，也不改其它日期。</p>
+        <div class="grain-choices" id="grain-choices">
+          <button class="grain-choice" type="button" data-grain="fine" data-i18n="grainFine">更细 · 25 分钟</button>
+          <button class="grain-choice" type="button" data-grain="steady" data-i18n="grainSteady">适中 · 45 分钟</button>
+          <button class="grain-choice" type="button" data-grain="wide" data-i18n="grainWide">更宽 · 90 分钟</button>
+        </div>
+        <p class="hint" id="grain-detail"></p>
+        <div class="detail-actions">
+          <button class="secondary" id="grain-cancel" type="button" data-i18n="cancel">取消</button>
+          <button class="primary" id="grain-apply" type="button" data-i18n="grainUseToday">用在今天</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="grain-suggest-modal" role="dialog" aria-modal="true" aria-labelledby="grain-suggest-title" aria-describedby="grain-suggest-copy">
+      <div class="modal-card stack">
+        <h2 id="grain-suggest-title"></h2>
+        <p class="hint" id="grain-suggest-copy"></p>
+        <p class="hint" id="grain-suggest-note" data-i18n="dayGrainNote">要不要调整由你决定。课题本身的规划粒度不会变。</p>
+        <div class="detail-actions">
+          <button class="secondary" id="grain-suggest-keep" type="button"></button>
+          <button class="primary" id="grain-suggest-apply" type="button"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="focus-modal" role="dialog" aria-modal="true" aria-labelledby="focus-title" aria-describedby="focus-copy">
+      <div class="modal-card stack">
+        <h2 id="focus-title"></h2>
+        <p class="hint" id="focus-copy"></p>
+        <p class="hint" id="focus-note"></p>
+        <div class="detail-actions">
+          <button class="secondary" id="focus-keep" type="button"></button>
+          <button class="primary" id="focus-apply" type="button"></button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast" class="toast" aria-live="polite"></div>
 
     <script>
@@ -1014,6 +1081,39 @@
           updateFailed: "更新失败：{status}",
           stepSaved: "已记录这一步",
           progressSynced: "进度已同步",
+          focusTitle: "调整工作时段",
+          focusCopy: "你有 {count} 次在当前作息之外处理了任务。按这些实际工作时间，更合适的安排是每天 {hours} 小时，工作时段 {start}–{end}。",
+          focusNote: "任务内容不会改变，只会重排各阶段、子任务和清单的完成时间。",
+          focusApply: "按新时段安排",
+          focusKeep: "保持当前作息",
+          focusApplied: "已按新的工作时段重新排期",
+          dayGrain: "今日粒度",
+          dayGrainHint: "只调整今天的清单跨度，不改课题的规划粒度，也不改其它日期。",
+          dayGrainNote: "要不要调整由你决定。课题本身的规划粒度不会变。",
+          grainFine: "更细 · 25 分钟",
+          grainSteady: "适中 · 45 分钟",
+          grainWide: "更宽 · 90 分钟",
+          grainFineDetail: "大约 25 分钟一段，清单写成能马上动手的小步。",
+          grainSteadyDetail: "大约 45 分钟一段，保持现在的清单。",
+          grainWideDetail: "大约 90 分钟一段，把今天相邻的步骤合成连续工作。",
+          grainUseToday: "用在今天",
+          grainFineName: "更细",
+          grainSteadyName: "适中",
+          grainWideName: "更宽",
+          grainAppliedFine: "已把今天的清单拆细",
+          grainAppliedSteady: "今天恢复为适中跨度",
+          grainAppliedWide: "已把今天调成更长的工作跨度",
+          sliceStart: "马上动手：{title}",
+          sliceNext: "接着做：{title}",
+          sliceLast: "收尾：{title}",
+          wideBlock: "连续完成",
+          grainSuggestFineTitle: "把今天拆细",
+          grainSuggestWideTitle: "把今天的跨度放大",
+          grainSuggestOverdue: "今天有 {count} 项过了计划时间还没完成，完成受到阻碍。建议把今天拆成大约 25 分钟一段，写成能马上动手的小步。",
+          grainSuggestOverrun: "有任务已经做得比预计更久，专注在下降。建议把今天拆成大约 25 分钟一段，写成能马上动手的小步。",
+          grainSuggestFlow: "今天已顺利完成 {count} 项，而且没有积压，注意力已经回到工作上。建议把今天的工作跨度放到大约 90 分钟，方便连续做完。",
+          grainSuggestApply: "按建议调整今天",
+          grainSuggestKeep: "保持今天的粒度",
           weekdays: ["日", "一", "二", "三", "四", "五", "六"],
         },
         en: {
@@ -1109,6 +1209,39 @@
           updateFailed: "Update failed: {status}",
           stepSaved: "Saved this step",
           progressSynced: "Progress synced",
+          focusTitle: "Adjust work hours",
+          focusCopy: "You handled tasks outside the current routine {count} times. A better fit is {hours} hours a day, {start}–{end}.",
+          focusNote: "Task details stay the same. Only the completion times of stages, subtasks, and checklist items move.",
+          focusApply: "Use this schedule",
+          focusKeep: "Keep current hours",
+          focusApplied: "Tasks were placed into the new work period",
+          dayGrain: "Today's grain",
+          dayGrainHint: "This only changes today's checklist span. The project's planning grain and other days stay as they are.",
+          dayGrainNote: "You decide whether to change it. The project's planning grain stays the same.",
+          grainFine: "Finer · 25 min",
+          grainSteady: "Steady · 45 min",
+          grainWide: "Wider · 90 min",
+          grainFineDetail: "About 25 minutes each, written as steps you can start immediately.",
+          grainSteadyDetail: "About 45 minutes each, leaving the checklist as it is.",
+          grainWideDetail: "About 90 minutes each, joining today's neighboring steps into one stretch.",
+          grainUseToday: "Use today",
+          grainFineName: "Finer",
+          grainSteadyName: "Steady",
+          grainWideName: "Wider",
+          grainAppliedFine: "Today's checklist was split into shorter steps",
+          grainAppliedSteady: "Today is back to a steady span",
+          grainAppliedWide: "Today is set to a longer work span",
+          sliceStart: "Start now: {title}",
+          sliceNext: "Continue: {title}",
+          sliceLast: "Finish this step: {title}",
+          wideBlock: "Work straight through",
+          grainSuggestFineTitle: "Split today more finely",
+          grainSuggestWideTitle: "Widen today's span",
+          grainSuggestOverdue: "{count} items today are still open after their planned time. Split today into about 25-minute steps you can start right away.",
+          grainSuggestOverrun: "A task has already run past its estimate, so focus is dropping. Split today into about 25-minute steps you can start right away.",
+          grainSuggestFlow: "You finished {count} items today with nothing overdue, and attention is back on the work. A 90-minute span lets you stay with it.",
+          grainSuggestApply: "Adjust today",
+          grainSuggestKeep: "Keep today's grain",
           weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
         },
       };
@@ -1188,6 +1321,8 @@
         applyStaticCopy();
         refreshScheduleForms(false);
         renderAll();
+        if (document.getElementById("focus-modal").classList.contains("open")) maybePromptFocus();
+        if (document.getElementById("grain-modal").classList.contains("open")) paintGrainChoices(state.pendingGrain || currentDayGrain());
         ensureLocaleCopy();
       }
 
@@ -1783,6 +1918,23 @@
         document.getElementById("progress-label").textContent = `${Math.round(ratio * 100)}%`;
       }
 
+      function dayItemHtml(item, from, to, label, extra) {
+        const slice = extra && extra.sliceId
+          ? ` data-slice-id="${escapeHtml(extra.sliceId)}" ${extra.checked ? "checked" : ""}`
+          : ` ${item.node.status === "DONE" ? "checked" : ""}`;
+        const done = item.node.status === "DONE" || (extra && extra.checked);
+        return `
+          <div class="day-item${done ? " done" : ""}" style="--frame:${item.color}">
+            <time>${slotLabel(from, to)}</time>
+            <button type="button" data-project-id="${escapeHtml(item.projectId)}" data-milestone-id="${escapeHtml(item.stage.task_id)}" data-subtask-id="${escapeHtml(item.subtask.task_id)}">
+              <strong>${escapeHtml(label)}</strong>
+              <span>${escapeHtml(taskTitle(item.stage))} · ${escapeHtml(taskTitle({ task_id: item.projectId, title: item.projectTitle }))}</span>
+            </button>
+            <input type="checkbox" aria-label="${escapeHtml(label)}" data-task-id="${escapeHtml(item.node.task_id)}"${slice} />
+          </div>
+        `;
+      }
+
       function renderDay(plan) {
         const board = document.getElementById("board");
         const rows = [];
@@ -1793,19 +1945,54 @@
           });
         });
         rows.sort((left, right) => left.slot.from - right.slot.from);
-        board.className = "day-agenda";
-        board.innerHTML = rows.length
-          ? rows.map(({ item, slot }) => `
-              <div class="day-item${item.node.status === "DONE" ? " done" : ""}" style="--frame:${item.color}">
-                <time>${slotLabel(slot.from, slot.to)}</time>
-                <button type="button" data-project-id="${escapeHtml(item.projectId)}" data-milestone-id="${escapeHtml(item.stage.task_id)}" data-subtask-id="${escapeHtml(item.subtask.task_id)}">
-                  <strong>${escapeHtml(taskTitle(item.node))}</strong>
-                  <span>${escapeHtml(taskTitle(item.stage))} · ${escapeHtml(taskTitle({ task_id: item.projectId, title: item.projectTitle }))}</span>
-                </button>
-                <input type="checkbox" aria-label="${escapeHtml(taskTitle(item.node))}" data-task-id="${escapeHtml(item.node.task_id)}" ${item.node.status === "DONE" ? "checked" : ""} />
+        const viewingToday = sameDay(state.focus, startOfDay(new Date()));
+        const grain = viewingToday ? currentDayGrain() : "steady";
+        const doneSlices = readSliceDone();
+        let html = "";
+        if (grain === "wide") {
+          wideGroups(rows).forEach((group) => {
+            if (group.rows.length < 2) {
+              const row = group.rows[0];
+              html += dayItemHtml(row.item, row.slot.from, row.slot.to, taskTitle(row.item.node));
+          return;
+        }
+            const first = group.rows[0];
+            const last = group.rows[group.rows.length - 1];
+            html += `
+              <div class="day-block" style="--frame:${first.item.color}">
+                <time>${slotLabel(first.slot.from, last.slot.to)}</time>
+                <div>
+                  <p class="block-title">${escapeHtml(t("wideBlock"))}</p>
+                  ${group.rows.map((row) => `
+                    <label class="check-row${row.item.node.status === "DONE" ? " done" : ""}">
+                      <input type="checkbox" data-task-id="${escapeHtml(row.item.node.task_id)}" ${row.item.node.status === "DONE" ? "checked" : ""} />
+                      <span>${escapeHtml(taskTitle(row.item.node))}</span>
+                    </label>
+                  `).join("")}
+                </div>
               </div>
-            `).join("")
-          : `<div class="empty">${escapeHtml(state.projects.length ? t("emptyDay") : t("emptyBoard"))}</div>`;
+            `;
+          });
+        } else {
+          rows.forEach(({ item, slot }) => {
+            const allPieces = grain === "fine" && item.node.status !== "DONE"
+              ? finePieces(item.node.task_id, taskTitle(item.node))
+              : [];
+            const pieces = allPieces.filter((piece) => piece.from >= slot.from && piece.to <= slot.to);
+            if (allPieces.length > 1 && pieces.length) {
+              pieces.forEach((piece) => {
+                html += dayItemHtml(item, piece.from, piece.to, piece.label, {
+                  sliceId: piece.id,
+                  checked: doneSlices.has(piece.id),
+                });
+              });
+              return;
+            }
+            html += dayItemHtml(item, slot.from, slot.to, taskTitle(item.node));
+          });
+        }
+        board.className = "day-agenda";
+        board.innerHTML = html || `<div class="empty">${escapeHtml(state.projects.length ? t("emptyDay") : t("emptyBoard"))}</div>`;
       }
 
       function renderTimeline(plan) {
@@ -1830,7 +2017,7 @@
             const owner = plan.find((item) => item.stage.task_id === stage.task_id);
             const color = owner?.color || "#3b82f6";
             const cells = days.map((date) => `<i class="${sameDay(date, startOfDay(new Date())) ? "today" : ""}"></i>`).join("");
-            return `
+          return `
               <div class="week-row" style="--frame:${color}">
                 <button class="stage-name ${kind}" type="button" data-project-id="${escapeHtml(owner?.projectId || "")}" data-milestone-id="${escapeHtml(stage.task_id)}">${escapeHtml(taskTitle(stage))}</button>
                 <div class="week-track">
@@ -1920,12 +2107,7 @@
           <div class="detail-meta">${escapeHtml(statusLabel)} · ${escapeHtml(t("hours", { hours: Number(selected.estimated_time || 0).toFixed(1) }))}${dueLabel ? ` · ${escapeHtml(dueLabel)}` : ""}</div>
           <p class="ms-copy">${escapeHtml(taskDescription(selected) || t("noNotes"))}</p>
           <div class="checklist">
-            ${checks.map((node) => `
-              <label class="check-row${node.status === "DONE" ? " done" : ""}">
-                <input type="checkbox" data-task-id="${escapeHtml(node.task_id)}" ${node.status === "DONE" ? "checked" : ""} ${node.children && node.children.length ? "disabled" : ""} />
-                <span>${escapeHtml(taskTitle(node))}</span>
-              </label>
-            `).join("")}
+            ${checks.map((node) => checklistRows(node)).join("")}
           </div>
           <div class="detail-actions">
             <button class="secondary" type="button" disabled title="${escapeHtml(t("addItemTitle"))}">${escapeHtml(t("addItem"))}</button>
@@ -1950,6 +2132,7 @@
         renderBoard();
         renderSubtasks();
         renderScheduleButton();
+        renderDayGrainButton();
       }
 
       function deadlineMemory() {
@@ -2000,6 +2183,7 @@
           const payload = await response.json();
           ingestProjects(payload.projects, state.selectedProjectId);
           renderAll();
+          maybePromptDayGrain();
           ensureLocaleCopy();
         } catch (error) {
           if (showErrors) showToast(error.message);
@@ -2018,9 +2202,9 @@
                 state.pendingDeadline = null;
               }
               ingestProjects(projects, created.tree.task_id);
-              renderAll();
+            renderAll();
               ensureLocaleCopy();
-              return true;
+            return true;
             }
           }
           await new Promise((resolve) => window.setTimeout(resolve, 500));
@@ -2059,8 +2243,8 @@
           const response = await fetch(
             revising ? `/api/v1/tasks/${encodeURIComponent(state.reviseTaskId)}/revise` : "/api/v1/tasks/init",
             {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ goal, persona, deadline_days: deadlineDays }),
             },
           );
@@ -2112,6 +2296,7 @@
       }
 
       async function updateTaskStatus(taskId, status) {
+        if (status === "DONE" || status === "IN_PROGRESS") noteActualWork(taskId, status);
         try {
           const response = await fetch(`/api/v1/tasks/${taskId}/status`, {
             method: "PATCH",
@@ -2163,6 +2348,9 @@
         if (event.key === "Escape") {
           modal.classList.remove("open");
           scheduleModal.classList.remove("open");
+          if (document.getElementById("focus-modal").classList.contains("open")) dismissFocusSuggestion();
+          if (document.getElementById("grain-suggest-modal").classList.contains("open")) dismissDayGrainSuggestion();
+          document.getElementById("grain-modal").classList.remove("open");
         }
       });
       const scheduleModal = document.getElementById("schedule-modal");
@@ -2299,6 +2487,360 @@
         window.localStorage.setItem("focusflow.periodStart", String(start));
         window.localStorage.setItem("focusflow.periodEnd", String(end));
       }
+      function formatHours(hours) {
+        const rounded = Math.round(Number(hours) * 2) / 2;
+        return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+      }
+      function minuteInWindow(minute, start, end) {
+        if (minute < start || minute >= end) return false;
+        return !mealRanges().some((meal) => minute >= meal.start && minute < meal.end);
+      }
+      function readWorkLog() {
+        try {
+          const parsed = JSON.parse(window.localStorage.getItem("focusflow.workLog") || "[]");
+          if (!Array.isArray(parsed)) return [];
+          return parsed.filter((item) => item && Number.isInteger(item.minute) && item.minute >= 0 && item.minute < 24 * 60);
+        } catch {
+          return [];
+        }
+      }
+      function focusSignature(suggestion) {
+        return `${suggestion.hours}|${suggestion.start}|${suggestion.end}`;
+      }
+      function suggestFocusWindow(log) {
+        const samples = log.filter((item) => Number.isInteger(item.minute));
+        const outside = samples.filter((item) => !minuteInWindow(item.minute, state.periodStart, state.periodEnd));
+        if (outside.length < 2) return null;
+        const starts = new Set();
+        for (let start = 0; start < 24 * 60; start += 30) starts.add(start);
+        starts.add(state.periodStart);
+        let best = null;
+        starts.forEach((start) => {
+          for (let steps = 1; steps <= 32; steps += 1) {
+            const hours = steps / 2;
+            const minutes = Math.round(hours * 60);
+            const end = endAfterWork(start, minutes);
+            if (end == null || end <= start || end > 24 * 60) continue;
+            if (workableMinutes(start, end) !== minutes) continue;
+            if (start === state.periodStart && end === state.periodEnd && hours === state.hoursPerDay) continue;
+            let outsideHit = 0;
+            let insideHit = 0;
+            samples.forEach((item) => {
+              if (!minuteInWindow(item.minute, start, end)) return;
+              if (minuteInWindow(item.minute, state.periodStart, state.periodEnd)) insideHit += 1;
+              else outsideHit += 1;
+            });
+            if (outsideHit < 1) continue;
+            const covered = outsideHit + insideHit;
+            const score = outsideHit * 10000 + covered * 100 + covered / hours - Math.abs(start - state.periodStart) / 100000;
+            if (!best || score > best.score) best = { hours, start, end, outsideHit, score };
+          }
+        });
+        return best;
+      }
+      function focusDialogBusy() {
+        return entryModal.classList.contains("open")
+          || scheduleModal.classList.contains("open")
+          || modal.classList.contains("open")
+          || document.getElementById("decompose-overlay").classList.contains("open")
+          || document.getElementById("grain-modal").classList.contains("open")
+          || document.getElementById("grain-suggest-modal").classList.contains("open");
+      }
+      function maybePromptFocus() {
+        if (focusDialogBusy()) return;
+        const log = readWorkLog();
+        const suggestion = suggestFocusWindow(log);
+        if (!suggestion) return;
+        if (window.localStorage.getItem("focusflow.focusDismissed") === focusSignature(suggestion)) return;
+        state.focusSuggestion = suggestion;
+        const count = log.filter((item) => !minuteInWindow(item.minute, state.periodStart, state.periodEnd)).length;
+        document.getElementById("focus-title").textContent = t("focusTitle");
+        document.getElementById("focus-copy").textContent = t("focusCopy", {
+          count,
+          hours: formatHours(suggestion.hours),
+          start: clock(suggestion.start),
+          end: clock(suggestion.end),
+        });
+        document.getElementById("focus-note").textContent = t("focusNote");
+        document.getElementById("focus-keep").textContent = t("focusKeep");
+        document.getElementById("focus-apply").textContent = t("focusApply");
+        document.getElementById("focus-modal").classList.add("open");
+        document.getElementById("focus-apply").focus();
+      }
+      function dismissFocusSuggestion() {
+        if (state.focusSuggestion) {
+          window.localStorage.setItem("focusflow.focusDismissed", focusSignature(state.focusSuggestion));
+        }
+        document.getElementById("focus-modal").classList.remove("open");
+      }
+      function applyFocusSuggestion() {
+        const suggestion = state.focusSuggestion;
+        if (!suggestion) return;
+        persistSchedule(suggestion.hours, suggestion.start, suggestion.end);
+        window.localStorage.removeItem("focusflow.focusDismissed");
+        document.getElementById("focus-modal").classList.remove("open");
+        renderAll();
+        showToast(t("focusApplied"));
+      }
+      function noteActualWork(taskId, status) {
+        if (entryModal.classList.contains("open")) return;
+        const now = new Date();
+        const minute = now.getHours() * 60 + now.getMinutes();
+        const day = ymd(now);
+        const key = `${day}|${taskId}|${minute}|${status}`;
+        const log = readWorkLog();
+        if (!log.some((item) => item.key === key)) {
+          log.push({ key, taskId, minute, day, at: now.getTime(), status });
+          while (log.length > 400) log.shift();
+          window.localStorage.setItem("focusflow.workLog", JSON.stringify(log));
+        }
+        maybePromptFocus();
+      }
+      function currentDayGrain() {
+        const today = ymd(startOfDay(new Date()));
+        try {
+          const parsed = JSON.parse(window.localStorage.getItem("focusflow.dayGrain") || "{}");
+          if (parsed[today] === "fine" || parsed[today] === "wide" || parsed[today] === "steady") return parsed[today];
+        } catch {
+          // Keep the steady span when the saved value cannot be read.
+        }
+        return "steady";
+      }
+      function grainName(grain) {
+        if (grain === "fine") return t("grainFineName");
+        if (grain === "wide") return t("grainWideName");
+        return t("grainSteadyName");
+      }
+      function renderDayGrainButton() {
+        const button = document.getElementById("open-day-grain");
+        const label = `${t("dayGrain")} · ${grainName(currentDayGrain())}`;
+        button.textContent = label;
+        button.setAttribute("aria-label", label);
+      }
+      function readSliceDone() {
+        const today = ymd(startOfDay(new Date()));
+        try {
+          const parsed = JSON.parse(window.localStorage.getItem("focusflow.daySliceDone") || "{}");
+          return new Set(Array.isArray(parsed[today]) ? parsed[today] : []);
+        } catch {
+          return new Set();
+        }
+      }
+      function writeSliceDone(ids) {
+        const today = ymd(startOfDay(new Date()));
+        let parsed = {};
+        try {
+          parsed = JSON.parse(window.localStorage.getItem("focusflow.daySliceDone") || "{}");
+        } catch {
+          parsed = {};
+        }
+        parsed[today] = [...ids];
+        window.localStorage.setItem("focusflow.daySliceDone", JSON.stringify(parsed));
+      }
+      function finePieces(taskId, title) {
+        const today = startOfDay(new Date());
+        const slots = [];
+        (state.plan || []).forEach((item) => {
+          if (item.node.task_id !== taskId) return;
+          item.slots.forEach((slot) => {
+            if (sameDay(slot.date, today)) slots.push(slot);
+          });
+        });
+        slots.sort((left, right) => left.from - right.from);
+        const pieces = [];
+        slots.forEach((slot) => {
+          let cursor = slot.from;
+          while (cursor < slot.to) {
+            const end = Math.min(slot.to, cursor + 25);
+            pieces.push({ id: `${taskId}:${cursor}`, from: cursor, to: end });
+            cursor = end;
+          }
+        });
+        return pieces.map((piece, index) => {
+          let label = title;
+          if (pieces.length > 1) {
+            const key = index === 0 ? "sliceStart" : index === pieces.length - 1 ? "sliceLast" : "sliceNext";
+            label = t(key, { title });
+          }
+          return { ...piece, label };
+        });
+      }
+      function checklistRows(node) {
+        const title = taskTitle(node);
+        const pieces = currentDayGrain() === "fine" && node.status !== "DONE" ? finePieces(node.task_id, title) : [];
+        if (pieces.length > 1) {
+          const doneSlices = readSliceDone();
+          return pieces.map((piece) => `
+            <label class="check-row${doneSlices.has(piece.id) ? " done" : ""}">
+              <input type="checkbox" data-task-id="${escapeHtml(node.task_id)}" data-slice-id="${escapeHtml(piece.id)}" ${doneSlices.has(piece.id) ? "checked" : ""} />
+              <span>${escapeHtml(piece.label)} · ${slotLabel(piece.from, piece.to)}</span>
+            </label>
+          `).join("");
+        }
+        return `
+          <label class="check-row${node.status === "DONE" ? " done" : ""}">
+            <input type="checkbox" data-task-id="${escapeHtml(node.task_id)}" ${node.status === "DONE" ? "checked" : ""} ${node.children && node.children.length ? "disabled" : ""} />
+            <span>${escapeHtml(title)}</span>
+          </label>
+        `;
+      }
+      function wideGroups(rows) {
+        const groups = [];
+        rows.forEach((row) => {
+          const last = groups[groups.length - 1];
+          const previous = last ? last.rows[last.rows.length - 1] : null;
+          const minutes = row.slot.to - row.slot.from;
+          const canMerge = previous
+            && previous.item.node.status !== "DONE"
+            && row.item.node.status !== "DONE"
+            && previous.item.subtask.task_id === row.item.subtask.task_id
+            && previous.slot.to === row.slot.from
+            && last.minutes + minutes <= 90;
+          if (canMerge) {
+            last.rows.push(row);
+            last.minutes += minutes;
+            return;
+          }
+          groups.push({ rows: [row], minutes });
+        });
+        return groups;
+      }
+      function findPlanNode(taskId) {
+        return (state.plan || []).find((item) => item.node.task_id === taskId)?.node || null;
+      }
+      function toggleSlice(taskId, sliceId, checked) {
+        const done = readSliceDone();
+        if (checked) done.add(sliceId);
+        else done.delete(sliceId);
+        writeSliceDone(done);
+        const node = findPlanNode(taskId);
+        const pieces = finePieces(taskId, node ? taskTitle(node) : "");
+        if (pieces.length && pieces.every((piece) => done.has(piece.id))) {
+          updateTaskStatus(taskId, "DONE");
+          return;
+        }
+        if (!checked && node && node.status === "DONE") {
+          updateTaskStatus(taskId, "PENDING");
+          return;
+        }
+        renderAll();
+      }
+      function handleTaskCheck(input) {
+        if (input.dataset.sliceId) {
+          toggleSlice(input.dataset.taskId, input.dataset.sliceId, input.checked);
+          return;
+        }
+        updateTaskStatus(input.dataset.taskId, input.checked ? "DONE" : "PENDING");
+      }
+      function assessToday() {
+        const grain = currentDayGrain();
+        const today = startOfDay(new Date());
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        const byId = new Map();
+        (state.plan || []).forEach((item) => {
+          item.slots.forEach((slot) => {
+            if (!sameDay(slot.date, today)) return;
+            const current = byId.get(item.node.task_id) || { item, overdue: false };
+            if (item.node.status !== "DONE" && item.node.status !== "SKIPPED" && nowMin >= slot.to) current.overdue = true;
+            current.item = item;
+            byId.set(item.node.task_id, current);
+          });
+        });
+        if (!byId.size) return null;
+        const overdue = [...byId.values()].filter((row) => row.overdue).length;
+        const done = [...byId.values()].filter((row) => row.item.node.status === "DONE").length;
+        let overrun = false;
+        const starts = readWorkLog().filter((entry) => entry.day === ymd(today) && entry.status === "IN_PROGRESS" && entry.at);
+        byId.forEach((row) => {
+          if (row.item.node.status !== "IN_PROGRESS") return;
+          const latest = starts.filter((entry) => entry.taskId === row.item.node.task_id).pop();
+          if (!latest) return;
+          const elapsed = (Date.now() - latest.at) / 60000;
+          const estimate = Math.max(1, Number(row.item.node.estimated_time || 1) * 60);
+          if (elapsed > estimate) overrun = true;
+        });
+        if ((overdue >= 2 || overrun) && grain !== "fine") {
+          return {
+            direction: "fine",
+            reason: overrun && overdue < 2 ? "overrun" : "overdue",
+            count: Math.max(overdue, 1),
+          };
+        }
+        if (done >= 2 && overdue === 0 && !overrun && grain !== "wide") {
+          return { direction: "wide", reason: "flow", count: done };
+        }
+        return null;
+      }
+      function paintDayGrainSuggestion(suggestion) {
+        document.getElementById("grain-suggest-title").textContent = t(suggestion.direction === "wide" ? "grainSuggestWideTitle" : "grainSuggestFineTitle");
+        const key = suggestion.reason === "flow"
+          ? "grainSuggestFlow"
+          : suggestion.reason === "overrun"
+            ? "grainSuggestOverrun"
+            : "grainSuggestOverdue";
+        document.getElementById("grain-suggest-copy").textContent = t(key, { count: suggestion.count });
+        document.getElementById("grain-suggest-note").textContent = t("dayGrainNote");
+        document.getElementById("grain-suggest-keep").textContent = t("grainSuggestKeep");
+        document.getElementById("grain-suggest-apply").textContent = t("grainSuggestApply");
+      }
+      function maybePromptDayGrain() {
+        const dialog = document.getElementById("grain-suggest-modal");
+        if (dialog.classList.contains("open") && state.dayGrainSuggestion) {
+          paintDayGrainSuggestion(state.dayGrainSuggestion);
+          return;
+        }
+        if (focusDialogBusy()) return;
+        const suggestion = assessToday();
+        if (!suggestion) return;
+        const signature = `${ymd(startOfDay(new Date()))}|${suggestion.direction}`;
+        if (window.localStorage.getItem("focusflow.dayGrainDismissed") === signature) return;
+        state.dayGrainSuggestion = suggestion;
+        paintDayGrainSuggestion(suggestion);
+        dialog.classList.add("open");
+        document.getElementById("grain-suggest-apply").focus();
+      }
+      function dismissDayGrainSuggestion() {
+        if (state.dayGrainSuggestion) {
+          window.localStorage.setItem(
+            "focusflow.dayGrainDismissed",
+            `${ymd(startOfDay(new Date()))}|${state.dayGrainSuggestion.direction}`,
+          );
+        }
+        document.getElementById("grain-suggest-modal").classList.remove("open");
+      }
+      function applyDayGrain(grain) {
+        const today = ymd(startOfDay(new Date()));
+        let parsed = {};
+        try {
+          parsed = JSON.parse(window.localStorage.getItem("focusflow.dayGrain") || "{}");
+        } catch {
+          parsed = {};
+        }
+        parsed[today] = grain;
+        window.localStorage.setItem("focusflow.dayGrain", JSON.stringify(parsed));
+        const suggestion = state.dayGrainSuggestion;
+        if (suggestion && suggestion.direction === grain) {
+          window.localStorage.setItem("focusflow.dayGrainDismissed", `${today}|${grain}`);
+        }
+        document.getElementById("grain-modal").classList.remove("open");
+        document.getElementById("grain-suggest-modal").classList.remove("open");
+        renderAll();
+        const toastKey = grain === "fine" ? "grainAppliedFine" : grain === "wide" ? "grainAppliedWide" : "grainAppliedSteady";
+        showToast(t(toastKey));
+      }
+      function paintGrainChoices(grain) {
+        state.pendingGrain = grain;
+        document.querySelectorAll("#grain-choices .grain-choice").forEach((button) => {
+          button.classList.toggle("selected", button.dataset.grain === grain);
+        });
+        const detailKey = grain === "fine" ? "grainFineDetail" : grain === "wide" ? "grainWideDetail" : "grainSteadyDetail";
+        document.getElementById("grain-detail").textContent = t(detailKey);
+      }
+      function openDayGrain() {
+        paintGrainChoices(currentDayGrain());
+        document.getElementById("grain-modal").classList.add("open");
+        document.getElementById("grain-apply").focus();
+      }
       function routineInvalid(hours, start, end, lunchStart, lunchEnd, dinnerStart, dinnerEnd) {
         if (!(hours >= 0.5 && hours <= 16)) return true;
         if ([start, end, lunchStart, lunchEnd, dinnerStart, dinnerEnd].some((value) => value == null)) return true;
@@ -2330,6 +2872,7 @@
         renderAll();
         const used = preferredDailyMinutes() / 60;
         showToast(used + 0.01 < hours ? t("hoursClamped", { hours: String(used).replace(/\.0$/, "") }) : t("scheduleSaved"));
+        maybePromptFocus();
       }
       function saveEntry(event) {
         event.preventDefault();
@@ -2354,6 +2897,8 @@
         document.getElementById("persona").value = persona;
         entryModal.classList.remove("open");
         renderAll();
+        maybePromptFocus();
+        maybePromptDayGrain();
       }
       function trapDialogTab(event, dialog) {
         if (event.key !== "Tab" || !dialog.classList.contains("open")) return;
@@ -2383,6 +2928,34 @@
       document.addEventListener("keydown", (event) => {
         trapDialogTab(event, entryModal);
         trapDialogTab(event, scheduleModal);
+        trapDialogTab(event, document.getElementById("focus-modal"));
+        trapDialogTab(event, document.getElementById("grain-modal"));
+        trapDialogTab(event, document.getElementById("grain-suggest-modal"));
+      });
+      document.getElementById("open-day-grain").addEventListener("click", openDayGrain);
+      document.getElementById("grain-cancel").addEventListener("click", () => {
+        document.getElementById("grain-modal").classList.remove("open");
+      });
+      document.getElementById("grain-apply").addEventListener("click", () => applyDayGrain(state.pendingGrain || currentDayGrain()));
+      document.getElementById("grain-choices").addEventListener("click", (event) => {
+        const choice = event.target.closest("[data-grain]");
+        if (!choice) return;
+        paintGrainChoices(choice.dataset.grain);
+      });
+      document.getElementById("grain-modal").addEventListener("click", (event) => {
+        if (event.target.id === "grain-modal") document.getElementById("grain-modal").classList.remove("open");
+      });
+      document.getElementById("grain-suggest-keep").addEventListener("click", dismissDayGrainSuggestion);
+      document.getElementById("grain-suggest-apply").addEventListener("click", () => {
+        if (state.dayGrainSuggestion) applyDayGrain(state.dayGrainSuggestion.direction);
+      });
+      document.getElementById("grain-suggest-modal").addEventListener("click", (event) => {
+        if (event.target.id === "grain-suggest-modal") dismissDayGrainSuggestion();
+      });
+      document.getElementById("focus-keep").addEventListener("click", dismissFocusSuggestion);
+      document.getElementById("focus-apply").addEventListener("click", applyFocusSuggestion);
+      document.getElementById("focus-modal").addEventListener("click", (event) => {
+        if (event.target.id === "focus-modal") dismissFocusSuggestion();
       });
       initForm.addEventListener("submit", initializePlan);
 
@@ -2438,7 +3011,7 @@
       document.getElementById("board").addEventListener("change", (event) => {
         const input = event.target.closest("input[data-task-id]");
         if (!input) return;
-        updateTaskStatus(input.dataset.taskId, input.checked ? "DONE" : "PENDING");
+        handleTaskCheck(input);
       });
       document.getElementById("subtask-list").addEventListener("click", (event) => {
         const button = event.target.closest("[data-subtask-id]");
@@ -2453,7 +3026,7 @@
       document.getElementById("subtask-detail").addEventListener("change", (event) => {
         const input = event.target.closest("input[data-task-id]");
         if (!input) return;
-        updateTaskStatus(input.dataset.taskId, input.checked ? "DONE" : "PENDING");
+        handleTaskCheck(input);
       });
       document.getElementById("subtask-detail").addEventListener("click", (event) => {
         if (event.target.id === "save-progress") {

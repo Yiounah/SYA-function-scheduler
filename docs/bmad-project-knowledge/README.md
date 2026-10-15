@@ -28,7 +28,7 @@ When sources conflict:
 
 ## Product Contract
 
-FocusFlow turns one long-horizon goal into stages and a next step. The core journey is: create a plan, see it on a timeline, select a stage, and mark the current checklist item in progress or done.
+FocusFlow turns long-horizon goals into stages and a next step. Several topics can run at once in the desktop. The core journey is: confirm the routine, create a plan, see it on a shared calendar, select a stage, and mark the current checklist item in progress or done.
 
 The accepted timeline spec covers:
 
@@ -42,6 +42,10 @@ The accepted timeline spec covers:
 | `CAP-3` | Select a milestone, then a subtask, then update a leaf |
 | `CAP-4` | Timeline and month navigation, with progress from completed leaves |
 | `CAP-5` | Search within the current topic |
+| `CAP-6` | Append another topic; revise only that topic's unfinished branches |
+| `CAP-7` | Place each topic across its own deadline inside one shared work period |
+| `CAP-8` | Suggest a new routine from actual work outside the period; the user decides |
+| `CAP-9` | Suggest today's grain from completion friction or flow; the user decides |
 
 `SCH-004` through `SCH-009`, multi-topic persistence, real calendar editing, and parent Dashboard IPC are deferred. A status label is a testable claim, not a planning shortcut.
 
@@ -52,7 +56,7 @@ The accepted timeline spec covers:
 - Renderer code does not read `.env`, Node, native APIs, or local files.
 - Service layering stays `app/api/` to `app/services/` to `app/models/` and `app/agents/voyage/`, with `app/core/` owning config, the event bus, the memory store, and the only LLM boundary.
 - Voyage names the loop: Navigator decomposes, Helm records human execution, Sextant checks and replans. The human is the executor.
-- State is one in-memory tree. Persistence and multi-topic storage are not implied by a passing health check.
+- The desktop holds a list of in-memory projects. Host routes still read the active tree. A health check does not mean the list survives restart.
 - This repository is the implementation behind SYA-UI's `function/scheduler` gitlink. A commit here is not shipped in the parent app until that pointer is updated and reviewed.
 
 ## Interface Contract
@@ -81,6 +85,6 @@ Do not use a lower level to close acceptance criteria that require a higher leve
 - `module.json` anchors point at `function/scheduler/` and parent renderer files that do not exist in this working tree.
 - Browser or unittest coverage does not establish packaged Electron, signing, or live GLM behavior.
 - `.github/workflows/ci.yml` can build a macOS artifact on push. `.github/workflows/pr-quality.yml` must stay read-only and credential-free.
-- Milestone dates are not stored. The desktop UI schedules leaves onto the real calendar from today at six hours per day, then shows day, week, and month views of that schedule.
+- Milestone dates are not stored. The desktop schedules leaves from the saved daily hours and work period, skipping meals, then shows day, week, and month views. Today's grain is a display overlay, not a second decomposition.
 
 See `docs/agent-sdlc.md` for workflow usage and GitHub quality-gate operation.

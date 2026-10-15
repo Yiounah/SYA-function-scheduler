@@ -1,6 +1,6 @@
 ---
 name: Research Timeline
-description: 科研任务规划桌面界面。冷灰底、白卡片、蓝强调，时间轴优先。
+description: 任务规划桌面界面。冷灰底、白卡片、蓝强调，时间轴优先。
 status: final
 updated: 2026-09-11
 colors:
@@ -41,7 +41,7 @@ spacing:
 
 ## Brand & Style
 
-安静的研究工作台，不是暖色 FocusFlow 卡片墙。留白、细线、蓝色节点。参考用户交付的「科研任务规划」稿（`imports/research-timeline.png`）。
+安静的研究工作台。留白、细线、蓝色节点。产品名是「任务规划」。工作时间和修改规划使用同一套浅蓝胶囊按钮。参考早期「科研任务规划」稿（`imports/research-timeline.png`）。
 
 ## Colors
 

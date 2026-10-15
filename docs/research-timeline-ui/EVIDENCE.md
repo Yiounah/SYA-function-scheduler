@@ -1,35 +1,34 @@
 # Delivery evidence
 
-date: 2026-09-11  
-request: apply SYA-UI BMAD skills in `SYA-function-scheduler` and implement the research-timeline UI
+date: 2026-10-12  
+request: reconcile FocusFlow with the Agent SDLC records and keep the desktop planner logic easy to follow
 
 ## Requirement
 
-- Explicit user request: 使用 SYA-UI Agent Skill 的产品/需求/UX/架构/实现/审查/测试/证据流程，并按交付设计图改界面。
-- IDs: SCH-001 (input surface), SCH-002 (existing decompose, unchanged), SCH-003 (timeline visualization).
-- Non-goals: SCH-004, SCH-005, SCH-006 persistence, SCH-007–009.
+- Explicit user request: 按 Agent SDLC 整理产品分析、需求、UX、架构、实现、审查、测试和交付证据，并让代码保持简洁、逻辑清楚。
+- Accepted records: `docs/research-timeline-ui/SPEC.md` CAP-1 through CAP-9, `EXPERIENCE.md`, `DESIGN.md`, `ARCHITECTURE.md`.
+- Project knowledge: `docs/bmad-project-knowledge/README.md`.
+- Non-goals: SCH-004, SCH-005, SCH-006 persistence, SCH-007–009, a second PRD under `_bmad-output/`.
 
-## Review notes
+## Review
 
-- Renderer still uses same-origin APIs only.
-- No OpenAPI/manifest/port change.
-- Checklist “添加清单项” is disabled; items come from the planner tree.
-- Parent PRD status text was not silently rewritten; it still disagrees with current scheduler source.
+- The accepted spec, experience, architecture, and project knowledge disagreed with the desktop: they still described one tree, the old product name, and a fixed six-hour day. Those records now match the code.
+- `renderAll` asked for a daily-grain suggestion on every redraw, including project switches. The suggestion now runs after the tree is loaded and after the routine dialog closes.
+- `package.json` listed `build` twice. The duplicate key is gone.
+- Today's grain still does not call the model. It only changes how today is shown.
+- Renderer still uses same-origin APIs. No OpenAPI or manifest change.
 
 ## Evidence
 
 | Level | What ran | Result |
 | --- | --- | --- |
-| Static | Markup contains 科研任务规划 / 新建规划 / 时间轴 / 日历 / 我的课题 | pass |
-| Service/source | `.venv/bin/python -m unittest tests.test_smoke -v` | 5 tests OK |
-| Service/source | `GET /health` and `GET /` on local runtime | 200 |
-| Renderer GUI | click-through in Electron window | not executed this pass |
-| Packaged Electron | `app:dist:mac` | not executed |
-| OS/hardware | — | n/a |
+| Service/source | `npm test` (16 Python tests, then `node --check` on the Electron shell) | pass |
+| Desktop dev | this pass did not click through a running window | gap |
+| Packaged Electron | `npm run app:dist:mac` | not run |
+| Live model | tests use the empty-key mock plan | gap |
 
 ## How to view
 
 ```bash
-source .venv/bin/activate
 npm run app:dev
 ```
