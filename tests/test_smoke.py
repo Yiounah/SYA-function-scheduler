@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
 import unittest
+from pathlib import Path
 
 os.environ["SYA_OPENAI_API_KEY"] = ""
 
@@ -167,6 +171,59 @@ class FocusFlowAppTests(unittest.TestCase):
         manifest = self.client.get("/manifest")
         self.assertEqual(manifest.status_code, 200)
         self.assertEqual(manifest.json()["id"], "scheduler")
+
+    def test_planner_routes_are_in_the_host_contract(self) -> None:
+        contract = json.loads(
+            (Path(__file__).resolve().parents[1] / "api.openapi.json").read_text()
+        )
+        operation_ids = {
+            operation["operationId"]
+            for path in contract["paths"].values()
+            for operation in path.values()
+            if isinstance(operation, dict) and "operationId" in operation
+        }
+        self.assertTrue(
+            {
+                "projects.list",
+                "tasks.init",
+                "tasks.revise",
+                "tasks.status",
+                "tasks.translate",
+                "tasks.tree",
+                "voyage.get",
+            }.issubset(operation_ids)
+        )
+        self.assertIn("/api/v1/projects", contract["paths"])
+        self.assertIn("/api/scheduler/decompose", contract["paths"])
+
+    def test_host_token_gates_planner_routes(self) -> None:
+        os.environ["FUNCTION_RUNTIME_TOKEN"] = "secret-token"
+        os.environ["FUNCTION_RUNTIME_PROOF_KEY"] = "proof-key"
+        try:
+            denied = self.client.get("/api/v1/projects")
+            self.assertEqual(denied.status_code, 401)
+            wrong = self.client.get(
+                "/health",
+                headers={"Authorization": "Bearer wrong-token"},
+            )
+            self.assertEqual(wrong.status_code, 401)
+
+            health = self.client.get(
+                "/health",
+                headers={"Authorization": "Bearer secret-token"},
+            )
+            self.assertEqual(health.status_code, 200)
+            expected = hmac.new(b"proof-key", b"sya-runtime-v1", hashlib.sha256).hexdigest()
+            self.assertEqual(health.headers["x-sya-runtime-proof"], expected)
+
+            listed = self.client.get(
+                "/api/v1/projects",
+                headers={"Authorization": "Bearer secret-token"},
+            )
+            self.assertEqual(listed.status_code, 200)
+        finally:
+            os.environ.pop("FUNCTION_RUNTIME_TOKEN", None)
+            os.environ.pop("FUNCTION_RUNTIME_PROOF_KEY", None)
 
 
 if __name__ == "__main__":

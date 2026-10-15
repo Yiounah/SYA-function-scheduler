@@ -7,9 +7,11 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.agents.voyage.engine import AppContainer, build_container
 from app.api import register_routes
+from app.api.runtime_auth import RuntimeAuthMiddleware
 from app.core.config import get_settings
 
 # Re-exported for tests and compatibility shims.
@@ -55,6 +57,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="FocusFlow",
     version="0.1.0",
+    description=(
+        "Planner API for other SYA modules. "
+        "/api/v1 keeps the project list, revise, translation, tree, and voyage. "
+        "/api/scheduler keeps the host bridge and still reads the active tree."
+    ),
     lifespan=lifespan,
+)
+app.add_middleware(RuntimeAuthMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 register_routes(app)

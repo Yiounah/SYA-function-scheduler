@@ -3,7 +3,7 @@
   "info": {
     "title": "SYA Scheduler Function API",
     "version": "0.1.0",
-    "description": "Scheduler-compatible task decomposition and rolling-wave planning API for SYA."
+    "description": "Scheduler host bridge plus the planner API other SYA modules call. /api/scheduler reads the active tree. /api/v1 lists projects and accepts init, revise, status, translation, tree, and voyage calls. Live docs are served at /docs."
   },
   "servers": [
     {
@@ -46,6 +46,169 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "operationId": "projects.list",
+        "summary": "List concurrent projects, oldest first",
+        "responses": {
+          "200": {
+            "description": "Project list. Does not change the active tree.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectList" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/init": {
+      "post": {
+        "operationId": "tasks.init",
+        "summary": "Create a project from a goal, persona, and optional deadline",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InitTaskRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Planning event accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EventAck" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{task_id}/revise": {
+      "post": {
+        "operationId": "tasks.revise",
+        "summary": "Revise unfinished branches of one project",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InitTaskRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Revise event accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EventAck" }
+              }
+            }
+          },
+          "404": { "description": "Project is not initialized" }
+        }
+      }
+    },
+    "/api/v1/tasks/{task_id}/status": {
+      "patch": {
+        "operationId": "tasks.status",
+        "summary": "Update one leaf task status",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTaskStatusRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status event accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EventAck" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/translate": {
+      "post": {
+        "operationId": "tasks.translate",
+        "summary": "Translate task wording for display without changing the stored tree",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TranslateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Translated titles and descriptions",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TranslateResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/tree": {
+      "get": {
+        "operationId": "tasks.tree",
+        "summary": "Read the active task tree",
+        "responses": {
+          "200": {
+            "description": "Active task tree",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "404": { "description": "Task tree is not initialized" }
+        }
+      }
+    },
+    "/api/v1/voyage": {
+      "get": {
+        "operationId": "voyage.get",
+        "summary": "Read the active voyage",
+        "responses": {
+          "200": {
+            "description": "Active voyage",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "404": { "description": "Voyage is not initialized" }
         }
       }
     },
@@ -330,6 +493,83 @@
           "attachments": {
             "type": "array",
             "items": { "type": "string" }
+          }
+        }
+      },
+      "InitTaskRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["goal"],
+        "properties": {
+          "goal": { "type": "string", "minLength": 1 },
+          "persona": { "type": "string", "minLength": 1, "default": "balanced" },
+          "deadline_days": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "UpdateTaskStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "IN_PROGRESS", "DONE", "BLOCKED", "SKIPPED"]
+          },
+          "actual_time": { "type": "number", "minimum": 0 }
+        }
+      },
+      "TranslateNode": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task_id", "title"],
+        "properties": {
+          "task_id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" }
+        }
+      },
+      "TranslateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "nodes"],
+        "properties": {
+          "target": { "type": "string", "enum": ["zh", "en"] },
+          "nodes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": { "$ref": "#/components/schemas/TranslateNode" }
+          }
+        }
+      },
+      "TranslateResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["nodes"],
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TranslateNode" }
+          }
+        }
+      },
+      "EventAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accepted", "event_id"],
+        "properties": {
+          "accepted": { "type": "boolean" },
+          "event_id": { "type": "string" }
+        }
+      },
+      "ProjectList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["projects"],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": { "type": "object" }
           }
         }
       },
