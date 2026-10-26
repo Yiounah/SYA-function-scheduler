@@ -17,6 +17,23 @@ from app.models.persona import PersonaProfile
 logger = logging.getLogger(__name__)
 
 
+class PlanningModelError(RuntimeError):
+    """Safe model failure details for the planner API, without provider payloads."""
+
+    MESSAGES = {
+        "MODEL_NOT_CONFIGURED": "Configure the planning model API key before generating a plan.",
+        "MODEL_AUTH_FAILED": "The planning model rejected the API credentials or access permissions.",
+        "MODEL_RATE_LIMITED": "The planning model is rate limited. Retry later or check the account quota.",
+        "MODEL_TIMEOUT": "The planning model timed out. Retry the preview.",
+        "MODEL_RESPONSE_INVALID": "The planning model returned an incomplete or invalid plan. Retry the preview.",
+        "MODEL_UNAVAILABLE": "The planning model is unavailable. Retry or explicitly choose the sample plan.",
+    }
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(self.MESSAGES[code])
+
+
 class LLMPlannerGateway(ABC):
     """Abstract LLM adapter for OpenAI-compatible task decomposition."""
 
@@ -57,7 +74,7 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
 
         if not self._api_key:
             if not allow_mock:
-                raise RuntimeError("MODEL_UNAVAILABLE")
+                raise PlanningModelError("MODEL_NOT_CONFIGURED")
             logger.warning("LLM API key is empty; using local mock plan")
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
 
@@ -94,23 +111,31 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
                 response.raise_for_status()
                 response_payload = response.json()
 
-            content = response_payload["choices"][0]["message"].get("content")
+            choice = response_payload["choices"][0]
+            if choice.get("finish_reason") == "length":
+                raise ValueError("LLM output was truncated")
+            content = choice["message"].get("content")
             if not content:
                 raise ValueError("LLM returned empty content")
             return self._load_json_content(content)
-        except httpx.HTTPStatusError as exc:
-            logger.exception(
-                "LLM HTTP %s: %s",
-                exc.response.status_code,
-                exc.response.text[:500],
-            )
-            if not allow_mock:
-                raise RuntimeError("MODEL_UNAVAILABLE") from exc
-            return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
         except Exception as exc:
-            logger.exception("LLM request failed, fallback plan will be used")
+            code = "MODEL_UNAVAILABLE"
+            status = None
+            if isinstance(exc, httpx.HTTPStatusError):
+                status = exc.response.status_code
+                if status in (401, 403):
+                    code = "MODEL_AUTH_FAILED"
+                elif status == 429:
+                    code = "MODEL_RATE_LIMITED"
+            elif isinstance(exc, httpx.TimeoutException):
+                code = "MODEL_TIMEOUT"
+            elif isinstance(exc, (ValueError, KeyError, IndexError, TypeError)):
+                code = "MODEL_RESPONSE_INVALID"
+            # Provider response bodies can contain private input; expose fixed diagnostics only.
+            logger.warning("Planning model request failed: code=%s http_status=%s", code, status)
             if not allow_mock:
-                raise RuntimeError("MODEL_UNAVAILABLE") from exc
+                raise PlanningModelError(code) from exc
+            logger.warning("Using the legacy local mock plan")
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
 
     def _compose_prompt(

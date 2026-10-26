@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 from fastapi.responses import JSONResponse
 
 from app.agents.voyage.engine import AppContainer
+from app.core.llm.gateway import PlanningModelError
 from app.core.memory_store import PlannedProject
 from app.models.persona import resolve_persona
 from app.models.task_tree import TaskNode, TaskStatus
@@ -417,6 +418,8 @@ async def preview_plan(container: AppContainer, desk: PlannerDesk, body: dict[st
                 response_schema=_plan_schema(),
                 allow_mock=False,
             )
+        except PlanningModelError as exc:
+            return failure(422, exc.code, str(exc))
         except (RuntimeError, ValueError):
             return failure(422, "MODEL_UNAVAILABLE", "The planning model did not return a plan. Retry or explicitly choose the sample plan.")
     validated = validate_tree(tree_json)

@@ -159,6 +159,11 @@ const COPY = {
     "allRemaining": "本课题尚未开始的任务",
     "noAdjustableTask": "请先建立课题并选择未完成任务。",
     "modelUnavailable": "模型暂不可用。请重试，或返回并明确选择示例演示。",
+    "modelNotConfigured": "尚未配置模型密钥。请配置后重启应用，再重新生成。",
+    "modelAuthFailed": "模型认证失败。请检查密钥是否有效，以及是否有该模型的使用权限。",
+    "modelRateLimited": "模型请求受限。请检查可用额度，或稍后重试。",
+    "modelTimeout": "模型响应超时。请稍后重试，你输入的目标仍保留。",
+    "modelResponseInvalid": "模型未返回有效的规划。请重试，你输入的目标仍保留。",
     "staleDraft": "计划已发生变化，这份草案不能覆盖最新进度。请重新生成。",
     "draftExpired": "草案已失效，请重新生成。",
     "saveFailed": "保存未确认，请重试；重试不会重复创建计划。",
@@ -369,6 +374,11 @@ const COPY = {
     "allRemaining": "Not-yet-started work in this project",
     "noAdjustableTask": "Create a project and choose unfinished work first.",
     "modelUnavailable": "The model is unavailable. Retry, or return and explicitly choose the sample demo.",
+    "modelNotConfigured": "No model API key is configured. Add a key, restart the app, then generate again.",
+    "modelAuthFailed": "Model authentication failed. Check that the key is valid and has access to this model.",
+    "modelRateLimited": "Model requests are limited. Check your available quota or retry later.",
+    "modelTimeout": "The model timed out. Retry later; your goal has been kept.",
+    "modelResponseInvalid": "The model did not return a valid plan. Retry; your goal has been kept.",
     "staleDraft": "Your plan changed. This draft cannot overwrite the latest progress. Generate a new draft.",
     "draftExpired": "This draft expired. Generate a new draft.",
     "saveFailed": "Save is not confirmed. Retry safely without creating a duplicate plan.",
@@ -1288,7 +1298,17 @@ function timezone() {
 }
 
 function readableError(error) {
-  const known = { MODEL_UNAVAILABLE: "modelUnavailable", STALE_DRAFT: "staleDraft", DRAFT_EXPIRED: "draftExpired", DRAFT_CANCELLED: "draftExpired" };
+  const known = {
+    MODEL_NOT_CONFIGURED: "modelNotConfigured",
+    MODEL_AUTH_FAILED: "modelAuthFailed",
+    MODEL_RATE_LIMITED: "modelRateLimited",
+    MODEL_TIMEOUT: "modelTimeout",
+    MODEL_RESPONSE_INVALID: "modelResponseInvalid",
+    MODEL_UNAVAILABLE: "modelUnavailable",
+    STALE_DRAFT: "staleDraft",
+    DRAFT_EXPIRED: "draftExpired",
+    DRAFT_CANCELLED: "draftExpired",
+  };
   return known[error.code] ? t(known[error.code]) : error.message;
 }
 
@@ -2142,7 +2162,6 @@ document.getElementById("focus-modal").addEventListener("click", (event) => {
   if (event.target.id === "focus-modal") dismissFocusSuggestion();
 });
 initForm.addEventListener("submit", initializePlan);
-document.getElementById("open-modal-top").addEventListener("click", () => openPlanModal("new"));
 document.getElementById("generation-cancel").addEventListener("click", cancelGeneration);
 document.getElementById("generation-retry").addEventListener("click", () => {
   if (state.previewRequest) void generateDraft(state.previewRequest);

@@ -168,7 +168,7 @@ AI 生成的草稿默认放在 `_bmad-output/`。确认后的长期规格应回�
 1. 打开 `release/` 里的 `FocusFlow-*.dmg`（或从发布页下载同名安装包）
 2. 把 **FocusFlow** 拖进「应用程序」
 3. 打开 FocusFlow
-4. 点「新建规划」，写下长程目标，选择规划粒度，生成研究时间轴
+4. 点左侧「新建规划」（窄屏显示在工作区上方），写下长程目标，选择规划粒度，生成研究时间轴
 5. 在时间轴里选择阶段，把眼前的清单标成进行中或完成
 
 没有配置模型 Key 时，AI 预览会明确提示不可用；可以主动选择「演示预览」查看带标识的内置示例，或在主 APP 手动填写计划。旧 `tasks.init/decompose` 的示例兼容路径不代表真实模型生成。
@@ -196,6 +196,10 @@ npm run app:dev
 - `npm run app:dist:mac`：打包模式，生成别人也能安装的 `release/*.dmg`。包里是打包那一刻的代码，之后改源码要重新打包。
 
 要用项目实际可用的模型做真正拆解时：到 [智谱开放平台](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 创建 Key，填进 `.env` 的 `SYA_OPENAI_API_KEY=`，然后重新运行 `npm run app:dev`。
+
+SYA-UI 内嵌服务读取其 `function/scheduler/.env`；它与独立仓库的 `.env` 是两个本地文件。配置后重启相应应用才能生效。真实 Key 仅保存在 Git 忽略的本地配置中，不写入 renderer、文档或示例文件。
+
+规划预览失败会返回固定诊断码：`MODEL_NOT_CONFIGURED` 表示未配置 Key，`MODEL_AUTH_FAILED` 表示 Key 或模型访问权限被拒绝，`MODEL_RATE_LIMITED` 表示限流，`MODEL_TIMEOUT` 表示超时，`MODEL_RESPONSE_INVALID` 表示回复为空、截断或不是有效 JSON，其余模型服务失败使用 `MODEL_UNAVAILABLE`。这些失败不会自动保存示例计划，也不把供应商响应正文或密钥返回页面。当前 GLM-5.3 请求保留 `thinking.type=enabled` 和 `reasoning_effort=low`，符合[智谱官方模型说明](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3)。
 
 ## 仓库结构
 

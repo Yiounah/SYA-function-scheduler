@@ -46,7 +46,7 @@ class PlanBridgeTests(unittest.TestCase):
     def test_preview_does_not_save_when_the_model_is_unavailable(self) -> None:
         response = self.client.post("/api/scheduler/plans/preview", json={"input": "????"})
         self.assertEqual(response.status_code, 422)
-        self.assertEqual(response.json()["error"]["code"], "MODEL_UNAVAILABLE")
+        self.assertEqual(response.json()["error"]["code"], "MODEL_NOT_CONFIGURED")
         self.assertEqual(self.client.get("/api/v1/projects").json()["projects"], [])
         self.assertFalse((Path(self._directory.name) / "planner.json").exists())
 
