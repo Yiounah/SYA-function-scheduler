@@ -16,9 +16,13 @@ def minutes(hours: float | None) -> int:
 
 def ui_task_status(status: TaskStatus) -> str:
     if status == TaskStatus.IN_PROGRESS:
-        return "active"
+        return "in_progress"
     if status == TaskStatus.DONE:
         return "completed"
+    if status == TaskStatus.SKIPPED:
+        return "cancelled"
+    if status == TaskStatus.BLOCKED:
+        return "blocked"
     return "pending"
 
 
@@ -54,7 +58,13 @@ def node_to_task(node: TaskNode) -> dict[str, Any]:
         "status": ui_task_status(node.status),
         "priority": "medium",
         "estimatedMinutes": minutes(node.estimated_time),
-        "deadline": None,
+        "deadline": node.deadline,
+        "scheduledDate": node.scheduled_date,
+        "parentId": node.parent_id,
+        "sourceTaskIds": node.source_task_ids or [node.task_id],
+        "treeStatus": node.status.value,
+        "actualMinutes": minutes(node.actual_time) if node.actual_time else None,
+        "attachments": [],
         "createdAt": created,
         "subtasks": [node_to_subtask(child, index) for index, child in enumerate(node.children)],
     }

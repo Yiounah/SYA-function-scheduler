@@ -61,14 +61,18 @@ class FocusFlowAppTests(unittest.TestCase):
         self.assertIn("研究周报", response.text)
         self.assertIn('data-nav="day"', response.text)
         self.assertIn("长程目标", response.text)
-        self.assertIn("按新时段安排", response.text)
-        self.assertIn("保持当前作息", response.text)
-        self.assertIn("任务内容不会改变", response.text)
+        self.assertIn('src="/static/app.js"', response.text)
+        self.assertIn('href="/static/styles.css"', response.text)
+        script = self.client.get('/static/app.js')
+        style = self.client.get('/static/styles.css')
+        self.assertEqual(script.status_code, 200)
+        self.assertEqual(style.status_code, 200)
+        self.assertIn('javascript', script.headers['content-type'])
+        self.assertIn('text/css', style.headers['content-type'])
+        self.assertEqual(self.client.get('/static/index.html').status_code, 404)
         self.assertIn("今日粒度", response.text)
-        self.assertIn("按建议调整今天", response.text)
-        self.assertIn("只调整今天的清单跨度", response.text)
         self.assertIn('data-lang="en"', response.text)
-        self.assertIn("Research Planner", response.text)
+        self.assertIn("Research Planner", script.text)
         self.assertNotIn("Live Event Stream", response.text)
         self.assertNotIn("FocusFlow Planner", response.text)
 
@@ -197,6 +201,11 @@ class FocusFlowAppTests(unittest.TestCase):
                 "tasks.translate",
                 "tasks.tree",
                 "voyage.get",
+                "plans.preview",
+                "plans.confirm",
+                "plans.commit",
+                "granularity.preview",
+                "routine.preview",
             }.issubset(operation_ids)
         )
         self.assertIn("/api/v1/projects", contract["paths"])
@@ -208,6 +217,8 @@ class FocusFlowAppTests(unittest.TestCase):
         try:
             denied = self.client.get("/api/v1/projects")
             self.assertEqual(denied.status_code, 401)
+            self.assertEqual(self.client.get('/static/app.js').status_code, 401)
+            self.assertEqual(self.client.get('/static/styles.css', headers={'Authorization': 'Bearer secret-token'}).status_code, 200)
             wrong = self.client.get(
                 "/health",
                 headers={"Authorization": "Bearer wrong-token"},

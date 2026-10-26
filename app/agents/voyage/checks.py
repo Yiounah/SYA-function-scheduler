@@ -7,7 +7,7 @@ from typing import Literal, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.task_tree import TERMINAL_STATUSES, TaskStatus
+from app.models.task_tree import TaskStatus
 
 
 class TaskExecutionSample(BaseModel):
@@ -33,7 +33,12 @@ class ProgressMetrics(BaseModel):
 
 
 def evaluate_progress(samples: Sequence[TaskExecutionSample]) -> ProgressMetrics:
-    """Compute completion rate, delay, and blocked-attention signals."""
+    """Compute execution evidence, not a measure of sustained attention.
+
+    A skipped task is closed but not completed. The legacy
+    ``procrastination_index`` field is only mean recorded duration overrun;
+    neither an overrun nor a blocked task establishes inattention.
+    """
 
     if not samples:
         return ProgressMetrics(
@@ -43,7 +48,7 @@ def evaluate_progress(samples: Sequence[TaskExecutionSample]) -> ProgressMetrics
             blocked_count=0,
         )
 
-    completed = [sample for sample in samples if sample.status in TERMINAL_STATUSES]
+    completed = [sample for sample in samples if sample.status == TaskStatus.DONE]
     blocked = [sample for sample in samples if sample.status == TaskStatus.BLOCKED]
     completion_rate = len(completed) / len(samples)
 
@@ -72,6 +77,8 @@ def decide_replan_strategy(
 ) -> Literal["fine", "coarse", "none"]:
     """Select replanning granularity according to threshold-based policy."""
 
+    if metrics.sample_size == 0:
+        return "none"
     if metrics.blocked_count > 0 or metrics.completion_rate < low_threshold:
         return "fine"
     if metrics.completion_rate > high_threshold:

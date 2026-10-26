@@ -30,7 +30,15 @@
     "task.created",
     "task.updated",
     "task.deleted",
-    "timeline.changed"
+    "timeline.changed",
+    "schedule.plan_generated",
+    "schedule.plan_confirmed",
+    "schedule.granularity_requested",
+    "schedule.granularity_applied",
+    "schedule.granularity_suggested",
+    "schedule.routine_suggested",
+    "schedule.routine_applied",
+    "schedule.task_completed"
   ],
   "permissions": [
     "llm-api"

@@ -13,6 +13,7 @@ from app.api.schemas import (
     UpdateTaskStatusRequest,
 )
 from app.agents.voyage.engine import AppContainer
+from app.services.planner_desk import public_tree
 from app.services.planning import (
     publish_init_task,
     publish_revise_task,
@@ -92,7 +93,10 @@ async def list_projects(
                 "goal": project.voyage.goal,
                 "persona": project.voyage.persona,
                 "deadline_days": project.voyage.deadline_days,
-                "tree": project.tree.model_dump(mode="json"),
+                "tree": public_tree(project.tree, project.voyage.voyage_id),
+                "revision": container.planner_desk.revision,
+                "started_at": project.voyage.started_at.isoformat(),
+                "generationMode": project.voyage.generation_mode,
             }
             for project in projects
         ]
@@ -101,14 +105,28 @@ async def list_projects(
 
 @router.get("/api/v1/tasks/tree")
 async def get_task_tree(
+    projectId: str | None = None,
     container: AppContainer = Depends(get_container),
 ) -> dict:
-    """Return the current task-tree snapshot for the app UI."""
+    """Return one project tree, or the active tree when no project is selected."""
 
+    desk = getattr(container, "planner_desk", None)
+    revision = getattr(desk, "revision", 0)
+    if projectId:
+        for project in await container.memory_store.list_projects():
+            if projectId in {project.voyage.voyage_id, project.tree.task_id}:
+                payload = public_tree(project.tree, project.voyage.voyage_id)
+                payload["projectId"] = project.voyage.voyage_id
+                payload["revision"] = revision
+                return payload
+        raise HTTPException(status_code=404, detail="Task tree is not initialized")
     tree = await container.memory_store.get_task_tree_snapshot()
     if tree is None:
         raise HTTPException(status_code=404, detail="Task tree is not initialized")
-    return tree.model_dump(mode="json")
+    owner = next((p for p in await container.memory_store.list_projects() if p.tree.task_id == tree.task_id), None)
+    payload = public_tree(tree, owner.voyage.voyage_id if owner else None)
+    payload["revision"] = revision
+    return payload
 
 
 @router.get("/api/v1/voyage")

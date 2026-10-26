@@ -6,14 +6,18 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8000}"
 
-python_is_compatible() {
-  "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
+python_can_serve() {
+  "$1" -c 'import sys, uvicorn; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
 }
 
 select_python() {
   if [[ -n "${PYTHON:-}" ]]; then
-    echo "${PYTHON}"
-    return
+    if python_can_serve "${PYTHON}"; then
+      echo "${PYTHON}"
+      return
+    fi
+    echo "PYTHON=${PYTHON} cannot import uvicorn on Python 3.11+." >&2
+    exit 1
   fi
 
   for candidate in \
@@ -26,16 +30,15 @@ select_python() {
     "python3" \
     "python"; do
     [[ -n "${candidate}" ]] || continue
-    if ([[ -x "${candidate}" ]] || command -v "${candidate}" >/dev/null 2>&1) && python_is_compatible "${candidate}"; then
+    if ([[ -x "${candidate}" ]] || command -v "${candidate}" >/dev/null 2>&1) && python_can_serve "${candidate}"; then
       echo "${candidate}"
       return
     fi
   done
 
-  echo "No compatible Python runtime found. Use Python 3.11+ or set PYTHON=/path/to/python." >&2
-  if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
-    echo "Existing .venv is $("${ROOT_DIR}/.venv/bin/python" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))' 2>/dev/null || echo 'unreadable'). Recreate it with Python 3.11+." >&2
-  fi
+  echo "No Python 3.11+ with uvicorn found for ${ROOT_DIR}." >&2
+  echo "Create the module environment, then retry:" >&2
+  echo "  python3.13 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" >&2
   exit 1
 }
 

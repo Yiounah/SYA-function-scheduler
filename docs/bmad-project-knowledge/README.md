@@ -45,9 +45,9 @@ The accepted timeline spec covers:
 | `CAP-6` | Append another topic; revise only that topic's unfinished branches |
 | `CAP-7` | Place each topic across its own deadline inside one shared work period |
 | `CAP-8` | Suggest a new routine from actual work outside the period; the user decides |
-| `CAP-9` | Suggest today's grain from completion friction or flow; the user decides |
+| `CAP-9` | Preview and confirm changes to unfinished checklist granularity while preserving execution and source IDs |
 
-`SCH-004` through `SCH-009`, multi-topic persistence, real calendar editing, and parent Dashboard IPC are deferred. A status label is a testable claim, not a planning shortcut.
+`SCH-006` persistence and the S1–S8 host integration supplement are accepted by the 2026-10-26 user request. SCH-004/005 and unrelated Dashboard/update requirements remain outside this module. Topics, progress, routine, stable calendar slots and confirmation receipts persist in the host-owned `planner.json` shared with SYA-UI. A status label is a testable claim, not a planning shortcut.
 
 ## Architecture Invariants
 
@@ -56,7 +56,7 @@ The accepted timeline spec covers:
 - Renderer code does not read `.env`, Node, native APIs, or local files.
 - Service layering stays `app/api/` to `app/services/` to `app/models/` and `app/agents/voyage/`, with `app/core/` owning config, the event bus, the memory store, and the only LLM boundary.
 - Voyage names the loop: Navigator decomposes, Helm records human execution, Sextant checks and replans. The human is the executor.
-- The desktop holds a list of in-memory projects. Host routes still read the active tree. A health check does not mean the list survives restart.
+- The desktop holds the project list. Host routes still read the active tree. With `SYA_SCHEDULER_DATA_DIR`, that list, the routine, and today's grain are reloaded from `planner.json`. A health check alone does not create the file.
 - This repository is the implementation behind SYA-UI's `function/scheduler` gitlink. A commit here is not shipped in the parent app until that pointer is updated and reviewed.
 
 ## Interface Contract
@@ -85,6 +85,6 @@ Do not use a lower level to close acceptance criteria that require a higher leve
 - `module.json` anchors point at `function/scheduler/` and parent renderer files that do not exist in this working tree.
 - Browser or unittest coverage does not establish packaged Electron, signing, or live GLM behavior.
 - `.github/workflows/ci.yml` can build a macOS artifact on push. `.github/workflows/pr-quality.yml` must stay read-only and credential-free.
-- Milestone dates are not stored. The desktop schedules leaves from the saved daily hours and work period, skipping meals, then shows day, week, and month views. Today's grain is a display overlay, not a second decomposition.
+- The planner service owns stable time slots and explicit task dates; both UIs read the same day/week/month schedule. Grain previews modify only unstarted work and preserve four levels. All official writes invalidate old drafts; file locking and disk revision comparison also protect a shared standalone/host data directory.
 
 See `docs/agent-sdlc.md` for workflow usage and GitHub quality-gate operation.

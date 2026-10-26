@@ -47,6 +47,11 @@ class Sextant:
         """Use blocked leaves immediately; batch completed leaves for metrics."""
 
         payload = TaskStatusUpdatedPayload.model_validate(event.payload)
+        voyage = await self._memory_store.get_voyage()
+        if voyage and voyage.generation_mode != "unknown":
+            # Confirmed planner journeys offer a preview through the UI. A
+            # blocked/completed observation must not silently apply a rewrite.
+            return
 
         if payload.is_leaf and payload.new_status == TaskStatus.BLOCKED:
             await self._request_replan(

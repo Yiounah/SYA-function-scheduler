@@ -29,6 +29,7 @@ class LLMPlannerGateway(ABC):
         strategy: ReplanStrategy | None,
         context: dict[str, Any],
         response_schema: dict[str, Any],
+        allow_mock: bool = True,
     ) -> dict[str, Any]:
         """Return JSON matching the provided schema for planning operations."""
 
@@ -50,10 +51,13 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
         strategy: ReplanStrategy | None,
         context: dict[str, Any],
         response_schema: dict[str, Any],
+        allow_mock: bool = True,
     ) -> dict[str, Any]:
         """Generate decomposition tree via OpenAI API format or local fallback."""
 
         if not self._api_key:
+            if not allow_mock:
+                raise RuntimeError("MODEL_UNAVAILABLE")
             logger.warning("LLM API key is empty; using local mock plan")
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
 
@@ -100,9 +104,13 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
                 exc.response.status_code,
                 exc.response.text[:500],
             )
+            if not allow_mock:
+                raise RuntimeError("MODEL_UNAVAILABLE") from exc
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
-        except Exception:
+        except Exception as exc:
             logger.exception("LLM request failed, fallback plan will be used")
+            if not allow_mock:
+                raise RuntimeError("MODEL_UNAVAILABLE") from exc
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
 
     def _compose_prompt(

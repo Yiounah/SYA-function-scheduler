@@ -9,24 +9,37 @@ in `app/src/types/electron.d.ts` so Dashboard integration tests can call
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date
 from typing import Any, AsyncIterator
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.voyage.engine import AppContainer
 from app.api.deps import get_container
 from app.api.schemas import InitTaskRequest, UpdateTaskStatusRequest
 from app.models.task_tree import TaskNode, TaskStatus
+from app.services.planner_desk import (
+    commit_draft,
+    config_view,
+    confirm_tree,
+    persist,
+    preview_granularity,
+    preview_plan,
+    preview_routine,
+    timeline_window,
+    cancel_draft,
+    update_config,
+)
+from app.services.calendar import build_slots, window
 from app.services.planning import publish_init_task, publish_status_update
 from app.services.timeline import (
     minutes,
     node_to_task,
     parse_task_status,
     resolve_task_id,
-    scheduler_config,
     timeline_for_tree,
 )
 
@@ -49,7 +62,7 @@ FUNCTION_MANIFEST: dict[str, Any] = {
         "adaptive-replanning",
         "voyage-runtime",
     ],
-    "events": ["task.created", "task.updated", "task.deleted", "timeline.changed"],
+    "events": ["task.created", "task.updated", "task.deleted", "timeline.changed", "schedule.plan_generated", "schedule.plan_confirmed", "schedule.granularity_requested", "schedule.granularity_applied", "schedule.granularity_suggested", "schedule.routine_suggested", "schedule.routine_applied", "schedule.task_completed"],
     "permissions": ["llm-api"],
 }
 
@@ -107,6 +120,7 @@ async def scheduler_decompose(
     await container.event_bus.join()
     tree = await container.memory_store.get_task_tree_snapshot()
     tasks = [node_to_task(node) for node in (tree.iter_leaves() if tree else [])]
+    await persist(container, container.planner_desk)
     return function_ok(
         {
             "tasks": tasks,
@@ -119,16 +133,17 @@ async def scheduler_decompose(
 @router.get("/api/scheduler/tasks", response_model=FunctionResponse)
 async def scheduler_list_tasks(
     status: str | None = None,
+    projectId: str | None = None,
     container: AppContainer = Depends(get_container),
 ) -> FunctionResponse:
-    tree = await container.memory_store.get_task_tree_snapshot()
-    tasks = [node_to_task(node) for node in (tree.iter_nodes() if tree else [])]
-    if tree is not None:
-        tasks = [task for task in tasks if task["id"] != tree.task_id]
+    projects = await container.memory_store.list_projects()
+    if projectId and projectId != "all":
+        projects = [p for p in projects if projectId in {p.voyage.voyage_id, p.tree.task_id}]
+    tasks = [{**node_to_task(node), "projectId": project.voyage.voyage_id} for project in projects for node in project.tree.iter_nodes() if node.task_id != project.tree.task_id]
     if status:
         wanted = {
-            "in_progress": "active",
-            "active": "active",
+            "in_progress": "in_progress",
+            "active": "in_progress",
             "completed": "completed",
             "pending": "pending",
         }.get(status, status)
@@ -143,11 +158,12 @@ async def scheduler_get_task(
     container: AppContainer = Depends(get_container),
 ) -> FunctionResponse:
     task_id = resolve_task_id(taskId, dict(request.query_params))
-    tree = await container.memory_store.get_task_tree_snapshot()
-    node = tree.find_node(task_id) if tree is not None else None
+    projects = await container.memory_store.list_projects()
+    owner = next((p for p in projects if p.tree.find_node(task_id)), None)
+    node = owner.tree.find_node(task_id) if owner else None
     if node is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return function_ok(node_to_task(node))
+    return function_ok({**node_to_task(node), "projectId": owner.voyage.voyage_id})
 
 
 @router.put("/api/scheduler/tasks/{taskId}", response_model=FunctionResponse)
@@ -158,6 +174,8 @@ async def scheduler_update_task(
 ) -> FunctionResponse:
     task_id = resolve_task_id(taskId, body)
     status = parse_task_status(body.get("status"))
+    if "status" in body and status is None:
+        raise HTTPException(status_code=422, detail="Unknown task status")
     if status is not None:
         actual_minutes = body.get("actualMinutes")
         await publish_status_update(
@@ -178,6 +196,10 @@ async def scheduler_update_task(
             node.title = str(body["title"])
         if "description" in body:
             node.description = str(body.get("description") or "")
+        if "deadline" in body:
+            node.deadline = body.get("deadline") or None
+        if "scheduledDate" in body:
+            node.scheduled_date = body.get("scheduledDate") or None
         return node_to_task(node)
 
     try:
@@ -187,6 +209,7 @@ async def scheduler_update_task(
     await container.event_bus.join()
     tree = await container.memory_store.get_task_tree_snapshot()
     node = tree.find_node(task_id) if tree is not None else None
+    await persist(container, container.planner_desk)
     return function_ok(node_to_task(node) if node is not None else task)
 
 
@@ -224,9 +247,26 @@ async def scheduler_delete_task(
 
 
 @router.get("/api/scheduler/timeline", response_model=FunctionResponse)
-async def scheduler_timeline(container: AppContainer = Depends(get_container)) -> FunctionResponse:
-    tree = await container.memory_store.get_task_tree_snapshot()
-    return function_ok(timeline_for_tree(tree))
+async def scheduler_timeline(
+    request: Request,
+    container: AppContainer = Depends(get_container),
+) -> FunctionResponse:
+    query = {key: value for key, value in request.query_params.items()}
+    projects = await container.memory_store.list_projects()
+    project_id = query.get("projectId")
+    if project_id and project_id != "all":
+        projects = [p for p in projects if project_id in {p.voyage.voyage_id, p.tree.task_id}]
+    elif project_id != "all":
+        active = await container.memory_store.get_task_tree_snapshot()
+        projects = [p for p in projects if active and p.tree.task_id == active.task_id]
+    try:
+        # Allocate against all projects before filtering, so per-project reads
+        # cannot accidentally claim the same shared work period.
+        slots = build_slots(await container.memory_store.list_projects(), container.planner_desk.overrides, container.planner_desk.slots)
+        ids = {p.voyage.voyage_id for p in projects}
+        return function_ok(window([s for s in slots if s["projectId"] in ids], query, container.planner_desk.overrides))
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid timeline range, timezone, or routine") from exc
 
 
 @router.post("/api/scheduler/tasks/reorder", response_model=FunctionResponse)
@@ -235,12 +275,23 @@ async def scheduler_reorder_tasks(
     container: AppContainer = Depends(get_container),
 ) -> FunctionResponse:
     order = {task_id: index for index, task_id in enumerate(body.task_ids)}
+    if len(order) != len(body.task_ids):
+        raise HTTPException(status_code=422, detail="Task order cannot contain duplicate IDs")
+    projects = await container.memory_store.list_projects()
+    owner = next((p for p in projects if all(p.tree.find_node(task_id) for task_id in body.task_ids)), None)
+    if owner is None:
+        raise HTTPException(status_code=422, detail="Reordered tasks must belong to the same existing project")
+    if owner.tree.task_id in order:
+        raise HTTPException(status_code=422, detail="A project root cannot be reordered among its tasks")
 
     def mutator(root: TaskNode) -> None:
+        if root.task_id != owner.tree.task_id:
+            raise KeyError(owner.tree.task_id)
         for node in root.iter_nodes():
             node.children.sort(key=lambda child: order.get(child.task_id, len(order)))
 
     await container.memory_store.mutate_tree(mutator)
+    await persist(container, container.planner_desk)
     return function_ok(None)
 
 
@@ -261,32 +312,156 @@ async def scheduler_stats(container: AppContainer = Depends(get_container)) -> F
 
 @router.get("/api/scheduler/config", response_model=FunctionResponse)
 async def scheduler_get_config(container: AppContainer = Depends(get_container)) -> FunctionResponse:
-    return function_ok(scheduler_config(container.settings))
+    return function_ok(config_view(container, container.planner_desk))
 
 
 @router.put("/api/scheduler/config", response_model=FunctionResponse)
 async def scheduler_update_config(
     body: dict[str, Any],
     container: AppContainer = Depends(get_container),
-) -> FunctionResponse:
-    config = scheduler_config(container.settings)
-    for key, value in body.items():
-        if isinstance(value, dict) and isinstance(config.get(key), dict):
-            config[key].update(value)
-        else:
-            config[key] = value
-    return function_ok(config)
+) -> Any:
+    return _bridge_result(await update_config(container, container.planner_desk, body))
+
+
+class PlanPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input: str | None = None
+    goal: str | None = None
+    projectId: str | None = None
+    granularity: str | None = None
+    availability: dict[str, Any] | None = None
+    timezone: str | None = None
+    attachments: list[str] = Field(default_factory=list)
+    tree: dict[str, Any] | None = None
+    expectedRevision: int | None = Field(default=None, ge=0)
+    persona: str | None = None
+    deadline_days: int | None = Field(default=None, ge=1, le=3650)
+    allowSample: bool = False
+
+
+class PlanConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tree: dict[str, Any]
+
+
+class PlanCommitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expectedRevision: int = Field(ge=0, strict=True)
+    requestId: str = Field(min_length=1, max_length=200)
+
+
+class GranularityPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projectId: str | None = None
+    taskId: str = Field(min_length=1)
+    level: str = "finer"
+    reason: str | None = None
+    focusSessionId: str | None = None
+    targetMinutes: int | None = Field(default=None, strict=True, ge=5, le=120)
+
+
+class RoutinePreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workStart: str | None = None
+    workEnd: str | None = None
+    rest: str | None = None
+    date: str | None = None
+    projectId: str | None = None
+    timezone: str | None = None
+    focusflow: dict[str, Any] | None = None
+    dailyGranularity: str | None = None
+    focusMinutes: int | None = Field(default=None, strict=True, ge=5, le=180)
+    breakMinutes: int | None = Field(default=None, strict=True, ge=0, le=60)
+    recoveryMinutes: int | None = Field(default=None, strict=True, ge=0, le=120)
+    cyclesBeforeRecovery: int | None = Field(default=None, strict=True, ge=1, le=12)
+
+
+def _bridge_result(result: Any) -> Any:
+    if isinstance(result, JSONResponse):
+        return result
+    return function_ok(result)
+
+
+@router.post("/api/scheduler/plans/preview")
+async def scheduler_preview_plan(
+    body: PlanPreviewRequest,
+    container: AppContainer = Depends(get_container),
+) -> Any:
+    result = await preview_plan(container, container.planner_desk, body.model_dump())
+    return _bridge_result(result)
+
+
+@router.post("/api/scheduler/plans/confirm")
+async def scheduler_confirm_plan(
+    body: PlanConfirmRequest,
+    container: AppContainer = Depends(get_container),
+) -> Any:
+    result = await confirm_tree(container, container.planner_desk, body.tree)
+    return _bridge_result(result)
+
+
+@router.post("/api/scheduler/plans/{draftId}/commit")
+async def scheduler_commit_plan(
+    draftId: str,
+    body: PlanCommitRequest,
+    container: AppContainer = Depends(get_container),
+) -> Any:
+    result = await commit_draft(container, container.planner_desk, draftId, body.model_dump())
+    return _bridge_result(result)
+
+
+@router.delete("/api/scheduler/plans/{draftId}")
+async def scheduler_cancel_plan(draftId: str, container: AppContainer = Depends(get_container)) -> Any:
+    return function_ok(await cancel_draft(container.planner_desk, draftId))
+
+
+@router.post("/api/scheduler/granularity/preview")
+async def scheduler_preview_granularity(
+    body: GranularityPreviewRequest,
+    container: AppContainer = Depends(get_container),
+) -> Any:
+    result = await preview_granularity(container, container.planner_desk, body.model_dump())
+    return _bridge_result(result)
+
+
+@router.post("/api/scheduler/routine/preview")
+async def scheduler_preview_routine(
+    body: RoutinePreviewRequest,
+    container: AppContainer = Depends(get_container),
+) -> Any:
+    result = await preview_routine(container, container.planner_desk, body.model_dump())
+    return _bridge_result(result)
 
 
 @router.get("/api/scheduler/events")
-async def scheduler_events() -> StreamingResponse:
+async def scheduler_events(request: Request, container: AppContainer = Depends(get_container)) -> StreamingResponse:
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    desk = container.planner_desk
+
     async def stream() -> AsyncIterator[str]:
-        yield 'event: ready\ndata: {"event":"ready","payload":{"functionId":"scheduler"}}\n\n'
-        while True:
-            await asyncio.sleep(15)
-            yield ": keepalive\n\n"
+        desk.subscribers.add(queue)
+        try:
+            yield 'event: ready\ndata: {"event":"ready","payload":{"functionId":"scheduler"}}\n\n'
+            while not await request.is_disconnected():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                    yield f"id: {event['id']}\nevent: {event['event']}\ndata: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            desk.subscribers.discard(queue)
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@router.get("/api/scheduler/telemetry", response_model=FunctionResponse)
+async def scheduler_telemetry(container: AppContainer = Depends(get_container)) -> FunctionResponse:
+    return function_ok({"events": list(container.planner_desk.events), "revision": container.planner_desk.revision})
 
 
 @router.get("/api/scheduler/actions", response_model=FunctionResponse)
@@ -307,6 +482,13 @@ async def function_actions() -> FunctionResponse:
                 {"action": "stats.get", "method": "GET", "path": "/api/scheduler/stats"},
                 {"action": "config.get", "method": "GET", "path": "/api/scheduler/config"},
                 {"action": "config.update", "method": "PUT", "path": "/api/scheduler/config"},
+                {"action": "plans.preview", "method": "POST", "path": "/api/scheduler/plans/preview"},
+                {"action": "plans.confirm", "method": "POST", "path": "/api/scheduler/plans/confirm"},
+                {"action": "plans.commit", "method": "POST", "path": "/api/scheduler/plans/{draftId}/commit"},
+                {"action": "plans.cancel", "method": "DELETE", "path": "/api/scheduler/plans/{draftId}"},
+                {"action": "telemetry.get", "method": "GET", "path": "/api/scheduler/telemetry"},
+                {"action": "granularity.preview", "method": "POST", "path": "/api/scheduler/granularity/preview"},
+                {"action": "routine.preview", "method": "POST", "path": "/api/scheduler/routine/preview"},
             ],
         }
     )

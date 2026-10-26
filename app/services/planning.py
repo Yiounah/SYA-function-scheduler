@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fastapi import HTTPException
+
 from app.agents.voyage.engine import AppContainer
 from app.api.schemas import (
     EventAckResponse,
@@ -88,6 +90,12 @@ async def publish_status_update(
 ) -> EventAckResponse:
     """Publish a task status update into the event bus."""
 
+    subtree = await container.memory_store.get_subtree_snapshot(task_id)
+    if subtree is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if subtree.get("children"):
+        raise HTTPException(status_code=422, detail="Only checklist items have an execution status")
+
     event = DomainEvent.build(
         event_type=EventType.STATUS_UPDATE,
         source=source,
@@ -98,4 +106,8 @@ async def publish_status_update(
         ),
     )
     await container.event_bus.publish(event)
+    await container.event_bus.join()
+    error = container.event_bus.failures.pop(event.event_id, None)
+    if error:
+        raise HTTPException(status_code=409 if error == "ConcurrentPlannerWrite" else 503, detail="Task could not be saved; reload before retrying")
     return EventAckResponse(accepted=True, event_id=event.event_id)

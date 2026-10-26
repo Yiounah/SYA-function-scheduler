@@ -28,6 +28,7 @@ class AsyncEventBus:
 
         self._dispatch_task: asyncio.Task[None] | None = None
         self._running = False
+        self.failures: dict[str, str] = {}
 
     def subscribe(self, event_type: EventType | None, handler: EventHandler) -> None:
         """Register an async handler for a concrete event or wildcard stream."""
@@ -89,7 +90,10 @@ class AsyncEventBus:
         """Invoke a handler with exception shielding to keep the bus alive."""
         try:
             await handler(event)
-        except Exception:
+        except Exception as exc:
+            self.failures[event.event_id] = type(exc).__name__
+            if len(self.failures) > 200:
+                self.failures.pop(next(iter(self.failures)))
             logger.exception(
                 "Event handler failed",
                 extra={"event_type": event.event_type.value, "event_id": event.event_id},

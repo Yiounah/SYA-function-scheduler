@@ -3,7 +3,7 @@
   "info": {
     "title": "SYA Scheduler Function API",
     "version": "0.1.0",
-    "description": "Scheduler host bridge plus the planner API other SYA modules call. /api/scheduler reads the active tree. /api/v1 lists projects and accepts init, revise, status, translation, tree, and voyage calls. Live docs are served at /docs."
+    "description": "Scheduler FunctionHost contract and planner APIs. Draft previews never write the official plan. Commit is revision checked, durable and idempotent across restart; task and timeline reads can select a project or all projects."
   },
   "servers": [
     {
@@ -26,7 +26,9 @@
             "description": "Runtime is healthy",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -42,7 +44,9 @@
             "description": "Function manifest",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
           }
@@ -58,7 +62,9 @@
             "description": "Project list. Does not change the active tree.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ProjectList" }
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
               }
             }
           }
@@ -73,7 +79,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/InitTaskRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/InitTaskRequest"
+              }
             }
           }
         },
@@ -82,7 +90,9 @@
             "description": "Planning event accepted",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/EventAck" }
+                "schema": {
+                  "$ref": "#/components/schemas/EventAck"
+                }
               }
             }
           }
@@ -98,14 +108,18 @@
             "name": "task_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/InitTaskRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/InitTaskRequest"
+              }
             }
           }
         },
@@ -114,11 +128,15 @@
             "description": "Revise event accepted",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/EventAck" }
+                "schema": {
+                  "$ref": "#/components/schemas/EventAck"
+                }
               }
             }
           },
-          "404": { "description": "Project is not initialized" }
+          "404": {
+            "description": "Project is not initialized"
+          }
         }
       }
     },
@@ -131,14 +149,18 @@
             "name": "task_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateTaskStatusRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskStatusRequest"
+              }
             }
           }
         },
@@ -147,7 +169,9 @@
             "description": "Status event accepted",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/EventAck" }
+                "schema": {
+                  "$ref": "#/components/schemas/EventAck"
+                }
               }
             }
           }
@@ -162,7 +186,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/TranslateRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/TranslateRequest"
+              }
             }
           }
         },
@@ -171,7 +197,9 @@
             "description": "Translated titles and descriptions",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/TranslateResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/TranslateResponse"
+                }
               }
             }
           }
@@ -187,12 +215,27 @@
             "description": "Active task tree",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
           },
-          "404": { "description": "Task tree is not initialized" }
-        }
+          "404": {
+            "description": "Task tree is not initialized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Voyage id or root task id. Omit to read the active tree."
+          }
+        ]
       }
     },
     "/api/v1/voyage": {
@@ -204,11 +247,15 @@
             "description": "Active voyage",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
           },
-          "404": { "description": "Voyage is not initialized" }
+          "404": {
+            "description": "Voyage is not initialized"
+          }
         }
       }
     },
@@ -220,7 +267,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/DecomposeRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/DecomposeRequest"
+              }
             }
           }
         },
@@ -229,7 +278,9 @@
             "description": "Decomposition result",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -247,8 +298,22 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["pending", "in_progress", "completed", "cancelled"]
+              "enum": [
+                "pending",
+                "in_progress",
+                "completed",
+                "cancelled"
+              ]
             }
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Voyage ID or root task ID; all reads all projects. Tasks default to all; timeline defaults to active project."
           }
         ],
         "responses": {
@@ -256,7 +321,9 @@
             "description": "Task list",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -272,7 +339,9 @@
             "name": "taskId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -280,7 +349,9 @@
             "description": "Task detail",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -294,14 +365,18 @@
             "name": "taskId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
           "required": false,
           "content": {
             "application/json": {
-              "schema": { "type": "object" }
+              "schema": {
+                "type": "object"
+              }
             }
           }
         },
@@ -310,7 +385,9 @@
             "description": "Updated task",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -324,7 +401,9 @@
             "name": "taskId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -332,7 +411,9 @@
             "description": "Delete result",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -342,17 +423,74 @@
     "/api/scheduler/timeline": {
       "get": {
         "operationId": "timeline.get",
-        "summary": "Get timeline view",
+        "summary": "Get timeline view for a day, week, or month",
         "responses": {
           "200": {
             "description": "Timeline data",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FunctionResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/Timeline"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Voyage ID or root task ID; all reads all projects. Tasks default to all; timeline defaults to active project."
+          }
+        ]
       }
     },
     "/api/scheduler/tasks/reorder": {
@@ -363,7 +501,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ReorderTasksRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/ReorderTasksRequest"
+              }
             }
           }
         },
@@ -372,7 +512,9 @@
             "description": "Reorder result",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -388,7 +530,9 @@
             "description": "Daily stats",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -404,7 +548,9 @@
             "description": "Scheduler configuration",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -417,7 +563,9 @@
           "required": false,
           "content": {
             "application/json": {
-              "schema": { "type": "object" }
+              "schema": {
+                "type": "object"
+              }
             }
           }
         },
@@ -426,7 +574,9 @@
             "description": "Updated scheduler configuration",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
           }
@@ -442,7 +592,9 @@
             "description": "SSE stream",
             "content": {
               "text/event-stream": {
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -458,9 +610,500 @@
             "description": "Action list",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/FunctionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/scheduler/plans/preview": {
+      "post": {
+        "operationId": "plans.preview",
+        "summary": "Preview a plan without saving it",
+        "responses": {
+          "200": {
+            "description": "Function response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FunctionResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PlanDraft"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [],
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "goal": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "granularity": {
+                    "type": "string",
+                    "enum": [
+                      "finer",
+                      "standard",
+                      "coarser"
+                    ]
+                  },
+                  "availability": {
+                    "type": "object"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "tree": {
+                    "$ref": "#/components/schemas/PlanNode"
+                  },
+                  "persona": {
+                    "type": "string"
+                  },
+                  "deadline_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
+                  },
+                  "allowSample": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Explicit local demonstration; never calls the model."
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "anyOf": [
+                  {
+                    "required": [
+                      "input"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "goal"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "tree"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduler/plans/confirm": {
+      "post": {
+        "operationId": "plans.confirm",
+        "summary": "Compatibility import for a new tree; existing projects require preview/commit",
+        "responses": {
+          "200": {
+            "description": "Function response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tree"
+                ],
+                "properties": {
+                  "tree": {
+                    "$ref": "#/components/schemas/PlanNode"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/scheduler/plans/{draftId}/commit": {
+      "post": {
+        "operationId": "plans.commit",
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Commit one draft idempotently",
+        "responses": {
+          "200": {
+            "description": "Function response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key; NO_CHANGES for an unchanged draft"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expectedRevision",
+                  "requestId"
+                ],
+                "properties": {
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduler/granularity/preview": {
+      "post": {
+        "operationId": "granularity.preview",
+        "summary": "Preview duration-based edits to unstarted work; leaf coarsening includes compatible adjacent siblings only",
+        "responses": {
+          "200": {
+            "description": "Function response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FunctionResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PlanDraft"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "taskId"
+                ],
+                "properties": {
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "finer",
+                      "standard",
+                      "coarser",
+                      "fine",
+                      "coarse"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "focusSessionId": {
+                    "type": "string"
+                  },
+                  "targetMinutes": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 120,
+                    "description": "Mode-specific duration budget: finer 5–30 (default 25); standard 25–60 (default 45); coarser 45–120 (default 90). Duration edits preserve work/source IDs and never claim semantic decomposition."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduler/routine/preview": {
+      "post": {
+        "operationId": "routine.preview",
+        "summary": "Preview a routine change and the tasks it would move",
+        "responses": {
+          "200": {
+            "description": "Function response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FunctionResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PlanDraft"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [],
+                "properties": {
+                  "workStart": {
+                    "type": "string"
+                  },
+                  "workEnd": {
+                    "type": "string"
+                  },
+                  "rest": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Effective local date (YYYY-MM-DD). Earlier slots and executed work are preserved. Replaces later scheduled routine changes, disclosed in warnings."
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  },
+                  "focusflow": {
+                    "type": "object",
+                    "description": "Shared work/meal minutes since midnight. hoursPerDay is the work window after meals, before cycle breaks. Explicit hours must match that availability."
+                  },
+                  "dailyGranularity": {
+                    "type": "string",
+                    "enum": [
+                      "fine",
+                      "finer",
+                      "standard",
+                      "coarse",
+                      "coarser"
+                    ]
+                  },
+                  "focusMinutes": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 180,
+                    "description": "Default 45 when no cycle preference is saved. Strict integer."
+                  },
+                  "breakMinutes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 60,
+                    "description": "Default 5 when no cycle preference is saved. Strict integer."
+                  },
+                  "recoveryMinutes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 120,
+                    "description": "Default 15 when no cycle preference is saved. Strict integer."
+                  },
+                  "cyclesBeforeRecovery": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12,
+                    "description": "Default 4 when no cycle preference is saved. Strict integer."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduler/plans/{draftId}": {
+      "delete": {
+        "operationId": "plans.cancel",
+        "summary": "Discard a draft without modifying saved tasks or routine",
+        "parameters": [
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "FunctionResponse envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
+          }
+        }
+      }
+    },
+    "/api/scheduler/telemetry": {
+      "get": {
+        "operationId": "telemetry.get",
+        "summary": "Read bounded planner lifecycle events and current revision",
+        "responses": {
+          "200": {
+            "description": "FunctionResponse envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, expired/cancelled draft, duplicate IDs, protected work, or reused idempotency key"
+          },
+          "422": {
+            "description": "Invalid task hierarchy, routine, input, or unavailable model"
+          },
+          "503": {
+            "description": "Save failed; the prior saved state is preserved"
           }
         }
       }
@@ -470,15 +1113,23 @@
     "schemas": {
       "FunctionResponse": {
         "type": "object",
-        "required": ["ok"],
+        "required": [
+          "ok"
+        ],
         "properties": {
-          "ok": { "type": "boolean" },
+          "ok": {
+            "type": "boolean"
+          },
           "data": {},
           "error": {
             "type": "object",
             "properties": {
-              "code": { "type": "string" },
-              "message": { "type": "string" },
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
               "details": {}
             }
           }
@@ -486,102 +1137,611 @@
       },
       "DecomposeRequest": {
         "type": "object",
-        "required": ["input"],
+        "required": [
+          "input"
+        ],
         "additionalProperties": false,
         "properties": {
-          "input": { "type": "string", "minLength": 1 },
+          "input": {
+            "type": "string",
+            "minLength": 1
+          },
           "attachments": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
       "InitTaskRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["goal"],
+        "required": [
+          "goal"
+        ],
         "properties": {
-          "goal": { "type": "string", "minLength": 1 },
-          "persona": { "type": "string", "minLength": 1, "default": "balanced" },
-          "deadline_days": { "type": "integer", "minimum": 1 }
+          "goal": {
+            "type": "string",
+            "minLength": 1
+          },
+          "persona": {
+            "type": "string",
+            "minLength": 1,
+            "default": "balanced"
+          },
+          "deadline_days": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       },
       "UpdateTaskStatusRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["PENDING", "IN_PROGRESS", "DONE", "BLOCKED", "SKIPPED"]
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "DONE",
+              "BLOCKED",
+              "SKIPPED"
+            ]
           },
-          "actual_time": { "type": "number", "minimum": 0 }
+          "actual_time": {
+            "type": "number",
+            "minimum": 0
+          }
         }
       },
       "TranslateNode": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["task_id", "title"],
+        "required": [
+          "task_id",
+          "title"
+        ],
         "properties": {
-          "task_id": { "type": "string", "minLength": 1 },
-          "title": { "type": "string", "minLength": 1 },
-          "description": { "type": "string" }
+          "task_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          }
         }
       },
       "TranslateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["target", "nodes"],
+        "required": [
+          "target",
+          "nodes"
+        ],
         "properties": {
-          "target": { "type": "string", "enum": ["zh", "en"] },
+          "target": {
+            "type": "string",
+            "enum": [
+              "zh",
+              "en"
+            ]
+          },
           "nodes": {
             "type": "array",
             "minItems": 1,
             "maxItems": 200,
-            "items": { "$ref": "#/components/schemas/TranslateNode" }
+            "items": {
+              "$ref": "#/components/schemas/TranslateNode"
+            }
           }
         }
       },
       "TranslateResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["nodes"],
+        "required": [
+          "nodes"
+        ],
         "properties": {
           "nodes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/TranslateNode" }
+            "items": {
+              "$ref": "#/components/schemas/TranslateNode"
+            }
           }
         }
       },
       "EventAck": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["accepted", "event_id"],
+        "required": [
+          "accepted",
+          "event_id"
+        ],
         "properties": {
-          "accepted": { "type": "boolean" },
-          "event_id": { "type": "string" }
+          "accepted": {
+            "type": "boolean"
+          },
+          "event_id": {
+            "type": "string"
+          }
         }
       },
       "ProjectList": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["projects"],
+        "required": [
+          "projects"
+        ],
         "properties": {
           "projects": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object"
+            }
           }
         }
       },
       "ReorderTasksRequest": {
         "type": "object",
-        "required": ["taskIds"],
+        "required": [
+          "taskIds"
+        ],
         "additionalProperties": false,
         "properties": {
           "taskIds": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "minItems": 1
+          }
+        }
+      },
+      "PlanNode": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "title",
+          "estimated_time",
+          "children"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "estimated_time": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanNode"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "DONE",
+              "BLOCKED",
+              "SKIPPED"
+            ]
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "nodeType": {
+            "type": "string",
+            "enum": [
+              "project",
+              "stage",
+              "task",
+              "checklist"
+            ]
+          },
+          "sourceTaskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deadline": {
+            "type": "string",
+            "nullable": true
+          },
+          "scheduled_date": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CalendarSlot": {
+        "type": "object",
+        "required": [
+          "projectId",
+          "date",
+          "start",
+          "end",
+          "startTime",
+          "endTime",
+          "kind"
+        ],
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "description": "Present only for work intervals."
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "overDeadline": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "work",
+              "break",
+              "recovery"
+            ]
+          },
+          "afterTaskId": {
+            "type": "string",
+            "description": "Preceding task for a recovery interval; absent on work slots."
+          }
+        },
+        "description": "Real offset-aware calendar interval. Work slots have taskId; break/recovery slots have afterTaskId and never become executable tasks."
+      },
+      "PlanDraft": {
+        "type": "object",
+        "required": [
+          "draftId",
+          "baseRevision",
+          "kind",
+          "tree",
+          "proposedSlots",
+          "warnings",
+          "generationMode",
+          "expiresAt",
+          "canCommit"
+        ],
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "baseRevision": {
+            "type": "integer"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "granularity",
+              "routine"
+            ]
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tree": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlanNode"
+              }
+            ],
+            "nullable": true
+          },
+          "proposedSlots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarSlot"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generationMode": {
+            "type": "string",
+            "enum": [
+              "model",
+              "manual",
+              "sample",
+              "deterministic"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "suggestion": {
+            "$ref": "#/components/schemas/RoutineView"
+          },
+          "affectedTasks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "canCommit": {
+            "type": "boolean",
+            "description": "False when the preview makes no change. A no-op commit returns NO_CHANGES; cancellation remains available."
+          },
+          "changeSummary": {
+            "$ref": "#/components/schemas/AdjustmentSummary"
+          },
+          "beforeRoutine": {
+            "$ref": "#/components/schemas/RoutineView"
+          }
+        }
+      },
+      "RoutineView": {
+        "type": "object",
+        "properties": {
+          "workStart": {
+            "type": "string"
+          },
+          "workEnd": {
+            "type": "string"
+          },
+          "rest": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Effective local date (YYYY-MM-DD). Earlier slots and executed work are preserved. Replaces later scheduled routine changes, disclosed in warnings."
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "focusflow": {
+            "type": "object",
+            "description": "Shared work/meal minutes since midnight. hoursPerDay is the work window after meals, before cycle breaks. Explicit hours must match that availability."
+          },
+          "focusMinutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 180,
+            "description": "Default 45 when no cycle preference is saved. Strict integer."
+          },
+          "breakMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60,
+            "description": "Default 5 when no cycle preference is saved. Strict integer."
+          },
+          "recoveryMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 120,
+            "description": "Default 15 when no cycle preference is saved. Strict integer."
+          },
+          "cyclesBeforeRecovery": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12,
+            "description": "Default 4 when no cycle preference is saved. Strict integer."
+          },
+          "availableMinutesPerDay": {
+            "type": "integer",
+            "description": "Nominal daily availability after meals, before cycle breaks."
+          },
+          "routineCycleConfigured": {
+            "type": "boolean",
+            "description": "False for legacy routines without an explicitly confirmed work/rest cycle."
+          }
+        }
+      },
+      "AdjustmentSummary": {
+        "type": "object",
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "scopeTaskId": {
+            "type": "string"
+          },
+          "targetMinutes": {
+            "type": "integer"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sourceTaskIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "beforeTitles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "afterTitles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "beforeMinutes": {
+                  "type": "number"
+                },
+                "afterMinutes": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "movedTaskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "beforeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "afterCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "preservedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Unchanged leaf count for granularity; protected executed leaf count for routine."
+          },
+          "affectedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "movedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overflowCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "availableMinutesPerDay": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "beforeMinutes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "afterMinutes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "workMinutes": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Work minutes across the complete proposed calendar, all projects and dates."
+          },
+          "breakMinutes": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Scheduled short and recovery minutes across the complete proposed calendar; excludes meals."
+          }
+        }
+      },
+      "Timeline": {
+        "type": "object",
+        "required": [
+          "date",
+          "view",
+          "timezone",
+          "events",
+          "breaks"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "description": "Executable work only.",
+            "items": {
+              "$ref": "#/components/schemas/CalendarSlot"
+            }
+          },
+          "breaks": {
+            "type": "array",
+            "description": "Short and recovery intervals, without taskId.",
+            "items": {
+              "$ref": "#/components/schemas/CalendarSlot"
+            }
           }
         }
       }

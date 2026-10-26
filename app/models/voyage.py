@@ -31,6 +31,7 @@ class Voyage(BaseModel):
     goal: str = Field(min_length=1)
     persona: str = Field(min_length=1)
     deadline_days: int | None = Field(default=None, ge=1)
+    generation_mode: str = "unknown"
     phase: VoyagePhase = VoyagePhase.PLANNING
     human_gate_reason: str | None = None
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

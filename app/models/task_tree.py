@@ -41,6 +41,9 @@ class TaskNode(BaseModel):
     is_leaf: bool = True
     estimated_time: float = Field(default=1.0, gt=0)
     actual_time: float | None = Field(default=None, ge=0)
+    deadline: str | None = None
+    scheduled_date: str | None = None
+    source_task_ids: list[str] = Field(default_factory=list)
 
     children: list["TaskNode"] = Field(default_factory=list)
 
@@ -80,6 +83,8 @@ class TaskNode(BaseModel):
                 if payload.get("actual_time") is not None
                 else None
             ),
+            "deadline": payload.get("deadline") or payload.get("deadline_date") or None,
+            "scheduled_date": payload.get("scheduled_date") or payload.get("scheduledDate") or None,
             "children": [],
         }
 

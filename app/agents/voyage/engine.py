@@ -28,6 +28,7 @@ class AppContainer:
     plan_editor: PlanEditor
     ws_sync_service: WebSocketSyncService
     llm_gateway: OpenAICompatiblePlannerGateway
+    planner_desk: object | None = None
 
     @property
     def cognitive_engine(self) -> Navigator:

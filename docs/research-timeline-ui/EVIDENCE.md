@@ -1,4 +1,48 @@
-# Delivery evidence
+# Delivery evidence — 2026-10-26
+
+## 2026-10-26 Scheduler 粒度与作息专项最终验收
+
+本轮仅完善 Scheduler 及其主 APP 界面；不新增 Focus/Monitor/Search/Gatekeeper 功能。目标分钟拆分/兼容合并、工作与休息周期、生效日期、变更摘要及简化后的两处界面已验证。修复了跳过计为完成、无样本建议，以及未确认周期时旧的两个30分钟任务被切成三块的兼容问题。
+
+- `npm test`：59 项 Python 测试全部通过，并检查 Electron 与抽离的 app.js 语法。
+- `scripts/test-planner-electron.mjs`：15 组真实独立 Electron 操作通过，含 CAP-8 两次时段外操作、取消/采纳、真实休息、退出重启；无 renderer 错误及残留进程。
+- 主 APP TypeScript、相关 ESLint、18 条浏览器流程通过；`test-design-journeys-electron.mjs` 34/34 路径通过（真实主进程、preload、FunctionHost、Python owner、重启回读）。
+- 原生截图及报告使用合成任务，模型仅在外部接口边界替换为固定回复；不证明真实供应商、注意传感器、签名或发布安装包。
+- Function 合同检查通过，文档 API 生成及本地 Docusaurus 编译通过；完整发布同步仍被既有 parent gitlink 与子模块 HEAD 不一致的保护阻止。快照明确标记 working-tree-uncommitted，未修改发布保护。
+
+主 APP 最终验收：2026-10-26T09:21:25.098Z 至 2026-10-26T09:22:07.650Z；Electron 42.3.3。renderer `dist/assets/index-07ITAnEu.js` SHA256 `2d40bf4965a6fb93d6995c9726baf520e4b349373159283636ac14d2525d6506`。main/preload SHA256分别为 `03920274852b3217940a308ac42f3f2b52e92c3d04e37f0d941fa639d997b659` / `2778c5dca9358b463488fb704aaaa5cddfd3ef61afd8cb9d141b8ddfacb7720b`。
+
+独立窗口最终证据已复制到 `_bmad-output/scheduler-acceptance/standalone-final/`；主 APP 证据位于父仓库 `_bmad-output/design-journeys/electron/evidence.json`。模块说明与专注评估边界见 `docs/scheduler-guide.md`。
+
+
+Scope: user-requested S1–S8 Scheduler completion and integration with SYA-UI, based on the supplied Schedule supplement. Existing uncommitted work was preserved and extended. The independent module and parent `function/scheduler` source copy are synchronized; no commit, push, release or gitlink update was performed.
+
+## Executed verification
+
+- `npm test`: 41 Python tests passed, followed by Electron shell syntax checks. Coverage includes draft cancellation, idempotent retries across restart, stale revision rejection, disk-write rollback, cross-process file CAS, four-level grain changes, protected active/completed tasks, routine normalization, cross-project sorting, shared day/week/month slots and timezone validation.
+- `node scripts/test-planner-electron.mjs`: 13 real standalone Electron journeys passed. This launches the real desktop shell and Python service in an isolated temporary profile, substitutes only the external model HTTP boundary, clicks the actual UI, quits and relaunches, and verifies that no owned Electron or Python process remains.
+- Standalone journeys include initial routine preview/cancel/confirm; new plan cancel/confirm; shared calendars; completion and stale-draft rejection; grain cancel/confirm and protected completed nodes; routine preview and rest preferences; model failure/retry; generation cancellation and late responses; explicit sample labeling; exact Monitor task/session handling; and persistence after restart.
+- Main-app compiled source Electron: 34/34 paths passed on 2026-10-26, including the real preload/IPC/FunctionHost chain, Scheduler → Focus → Search recovery, Monitor preview/cancel/commit, Gatekeeper session recap, true exit/relaunch, and no remaining owned processes. Electron 42.3.3 / Chromium 148.0.7778.218 / Electron Node 24.15.0; Scheduler Python 3.13.5. The in-app read-only API reference displays the new operations.
+- The main project's renderer regressions passed 16/16 in installed Chrome, including a commit that succeeds on the server but loses its first response: retry reuses the original draft and request ID. TypeScript and changed-file ESLint passed.
+- Four-module source contracts and Scheduler research-event checks passed in SYA-UI. A checkpoint/status edit is not counted as a complete planning dialogue; preview/cancel are not adoption, and confirmation retries keep one identity.
+
+Standalone report and screenshots are in ignored `_bmad-output/scheduler-acceptance/standalone/`. Main-app Electron verification and precise build/profile details are recorded by SYA-UI in `_bmad-output/design-journeys/electron/evidence.json` and its testing documentation.
+
+## Boundaries
+
+- Model HTTP replies are fixed fixtures. No live GLM/other provider quality, credentials, OS sensors, signing or packaged-release claim is made.
+- Source Electron acceptance does not update an installed application. Publishing requires a reviewed module commit, matching parent gitlink and appropriate runtime artifacts.
+- The legacy `tasks.update` edit contract retains last-write behavior; the new preview/commit flow has optimistic concurrency protection.
+- Parent `test:functions` as a whole requires the currently uninitialized Monitor source. The available four modules were checked explicitly. The Scheduler uses the real owner with fixed model fixtures rather than a separate mock implementation.
+- The parent documentation publication command remains guarded by its existing mismatched Scheduler gitlink. The updated contract snapshot is explicitly marked as uncommitted working-tree content; local API generation and static documentation rendering are separate from publication provenance.
+
+## References used
+
+Implementation reused the existing stack and standard facilities; no new runtime framework was added. References: [FastAPI responses](https://fastapi.tiangolo.com/tutorial/response-model/), [Python file replacement](https://docs.python.org/3.11/library/os.html#os.replace), [Playwright Electron](https://playwright.dev/docs/api/class-electron), [Electron IPC](https://www.electronjs.org/docs/latest/tutorial/ipc), and [React Effect cleanup](https://react.dev/reference/react/useEffect).
+
+---
+
+## Historical record — 2026-10-12
 
 date: 2026-10-12  
 request: reconcile FocusFlow with the Agent SDLC records and keep the desktop planner logic easy to follow

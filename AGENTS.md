@@ -38,7 +38,7 @@ FocusFlow is the user-facing desktop app in this repository and the SYA schedule
 - CI pins Node `22.17.1` from `.nvmrc`. Local framework verification also requires Git, uv, Python `>=3.11`, Node `>=22.12.0`, npm `>=10.9.0`, and network access or populated `npx` caches.
 - App checks are `npm test`: Python unittest discovery plus `node --check` on the Electron shell. macOS packaging is `npm run app:dist:mac` and is not part of the read-only PR gate.
 - A green unittest run proves the in-process service and task tree. It does not prove a packaged `.dmg`, code signing, or a live model provider.
-- Without `SYA_OPENAI_API_KEY`, planning uses the built-in sample plan. Do not describe that path as a live GLM-5.3 decomposition.
+- Without `SYA_OPENAI_API_KEY`, new preview journeys return a model-unavailable error unless the user explicitly selects sample mode. Legacy init/decompose keep their sample compatibility path. Neither path is evidence of a live model call.
 
 ## Conventions That Differ From Defaults
 
@@ -50,8 +50,8 @@ FocusFlow is the user-facing desktop app in this repository and the SYA schedule
 
 - The parent PRD's implementation-status text can disagree with this repository. Verify claims here against `docs/research-timeline-ui/`, current code, and `tests/` before reporting progress.
 - The remote default branch is `main`. `.github/workflows/ci.yml` runs tests on Ubuntu and builds a macOS package on push; passing `.github/workflows/pr-quality.yml` does not publish that package.
-- `package.json` contains two `build` keys. JSON parsers keep the last one. Do not treat `npm run build` as an application bundle.
-- The task model has no stored calendar fields. The desktop UI places leaves on the real system calendar from today, six hours per day, and shows that schedule as day, week, and month views. The service still stores one in-memory tree.
+- `package.json` has a `scripts.build` runtime notice and a separate top-level Electron Builder configuration. `npm run build` is not an application bundle.
+- The scheduler service owns stable calendar slots, explicit task dates and revisioned drafts. Standalone and parent day/week/month views read the same persisted schedule. Grain changes preserve four layers and executed nodes; all official writes invalidate old drafts. With `SYA_SCHEDULER_DATA_DIR`, projects, routine, progress, slots and commit receipts reload from `planner.json`; the standalone window uses SYA-UI's `userData/scheduler`. The 2026-10-26 user request accepts the S1–S8 integration supplement and SCH-006 persistence; unrelated deferred parent requirements remain deferred.
 - macOS system `python3` is often 3.9. Framework and app tests need Python 3.11 or newer.
 
 <!-- /bmad:context -->

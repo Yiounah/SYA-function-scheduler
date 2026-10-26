@@ -45,6 +45,36 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     container = build_container(settings)
     container.register()
+    from app.services.planner_desk import PlannerDesk, restore_desk
+
+    container.planner_desk = PlannerDesk()
+    await restore_desk(container, container.planner_desk)
+
+    async def save_shared_desk() -> None:
+        from app.services.planner_desk import persist
+
+        desk = container.planner_desk
+        desk.revision += 1
+        try:
+            await persist(container, desk)
+        except OSError:
+            desk.revision -= 1
+            raise
+        desk.emit("task.updated", revision=desk.revision)
+        desk.emit("timeline.changed", revision=desk.revision)
+
+    container.memory_store.set_after_change(save_shared_desk)
+    from app.models.domain_events import EventType
+
+    async def record_completion(event) -> None:
+        if event.payload.get("new_status") == "BLOCKED":
+            container.planner_desk.emit("schedule.granularity_suggested", taskId=event.payload.get("task_id"), reason="blocked", eventId=event.event_id)
+        if event.payload.get("new_status") == "DONE" and event.payload.get("old_status") != "DONE":
+            container.planner_desk.emit("schedule.task_completed", taskId=event.payload.get("task_id"), eventId=event.event_id, correlationId=event.correlation_id)
+            from app.services.planner_desk import persist
+            await persist(container, container.planner_desk)
+
+    container.event_bus.subscribe(EventType.TASK_STATUS_UPDATED, record_completion)
     await container.event_bus.start()
     app.state.container = container
 

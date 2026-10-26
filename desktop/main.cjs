@@ -86,10 +86,17 @@ async function waitForHealth(baseUrl) {
   throw new Error(`Scheduler runtime did not become healthy within ${STARTUP_TIMEOUT_MS / 1_000}s.${lastError ? ` ${lastError.message}` : ''}`);
 }
 
+function sharedSchedulerDir() {
+  if (process.env.SYA_SCHEDULER_DATA_DIR) return process.env.SYA_SCHEDULER_DATA_DIR;
+  return path.join(app.getPath('appData'), 'sya-ui', 'scheduler');
+}
+
 async function startRuntime() {
   const port = await allocatePort();
   const command = runtimeCommand();
   const logPath = openRuntimeLog();
+  const dataDir = sharedSchedulerDir();
+  mkdirSync(dataDir, { recursive: true });
 
   runtimeProcess = spawn(command, [], {
     cwd: app.isPackaged ? process.resourcesPath : app.getAppPath(),
@@ -98,6 +105,7 @@ async function startRuntime() {
       HOST: '127.0.0.1',
       PORT: String(port),
       PYTHONUNBUFFERED: '1',
+      SYA_SCHEDULER_DATA_DIR: dataDir,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

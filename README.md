@@ -2,6 +2,8 @@
 
 FocusFlow 把一个很长的目标拆成阶段，以及你现在就能做的下一步。
 
+[模块作用、功能演示与持续专注评估说明](docs/scheduler-guide.md)记录 Scheduler 的范围、创新定位及 A5 参考来源。本轮完善目标分钟细化与同父合并、实际专注/休息周期、生效日期和前后影响预览；正式任务与执行记录仍通过统一草案确认保存。任务完成和计时运行不等于持续专注。
+
 ## Agent SDLC 开发框架
 
 本仓库已经内置一套面向 FocusFlow 的项目级 Agent SDLC。它不是另一个应用或运行时服务，而是由 BMAD、TEA、OpenCode Skills、项目知识和 GitHub 质量门禁组成的 AI 辅助软件工程流程。它用于让产品分析、需求、UX、架构、实现、审查、测试和交付证据遵循同一套项目规则。
@@ -147,6 +149,18 @@ AI 生成的草稿默认放在 `_bmad-output/`。确认后的长期规格应回�
 
 详细的版本、GitHub 门禁和更新规则见 [`docs/agent-sdlc.md`](docs/agent-sdlc.md)。
 
+## 长程规划与主 APP 对接（2026-10-26）
+
+独立窗口和 SYA-UI 任务工作区共用 Scheduler 服务合同：输入目标 → 四层草案 → 确认保存 → 日/周/月查看 → 开始或完成清单。AI 草案可取消；模型错误不会自动替换成成功示例。演示预览需要主动选择并显示示例标识。
+
+- `plans.preview`、`granularity.preview`、`routine.preview` 返回 `draftId`、`baseRevision`、四层树和建议时间块；预览不改正式计划。
+- `plans.commit` 接收 `expectedRevision` 与 `requestId`，拒绝过期或并发冲突，重复同一次确认返回原回执。`plans.cancel` 撤销草案。
+- `timeline.get` 支持日期范围、日/周/月视图、时区和项目；多个视图使用同一份保存的排期。`tasks.tree` 显式选择项目，列表与时间线可使用 `projectId=all`。
+- Monitor 黄色提醒先打开任务绑定的粒度预览；Focus 管理真实会话编号；结束专注不自动完成任务。Deep Search 恢复时回读最新任务并返回 Focus。
+- 设置 `SYA_SCHEDULER_DATA_DIR` 后，正式树、任务进度、排期、作息和确认回执保存到 `planner.json`；文件锁与磁盘版本比较保护多个本地进程的并发修改。
+
+需求和边界见 [SPEC](docs/research-timeline-ui/SPEC.md)，接口以根目录 `api.openapi.json` 为准，实际验证见 [EVIDENCE](docs/research-timeline-ui/EVIDENCE.md)。本地源码修改不会自动更新父仓库 gitlink 或已安装的发行包。
+
 ## 快速开始（给使用者）
 
 用已经打好的 Mac 安装包，不需要安装 Python 或 Node。
@@ -157,7 +171,7 @@ AI 生成的草稿默认放在 `_bmad-output/`。确认后的长期规格应回�
 4. 点「新建规划」，写下长程目标，选择规划粒度，生成研究时间轴
 5. 在时间轴里选择阶段，把眼前的清单标成进行中或完成
 
-没有配置模型 Key 时，应用会用内置示例计划，界面和操作流程是完整的。
+没有配置模型 Key 时，AI 预览会明确提示不可用；可以主动选择「演示预览」查看带标识的内置示例，或在主 APP 手动填写计划。旧 `tasks.init/decompose` 的示例兼容路径不代表真实模型生成。
 
 ## 从源码运行（给开发者）
 
@@ -181,7 +195,7 @@ npm run app:dev
 - `npm run app:dev`：开发模式，直接打开当前源码。改完再运行一次即可看到更新。
 - `npm run app:dist:mac`：打包模式，生成别人也能安装的 `release/*.dmg`。包里是打包那一刻的代码，之后改源码要重新打包。
 
-要用 GLM-5.3 做真正拆解时：到 [智谱开放平台](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 创建 Key，填进 `.env` 的 `SYA_OPENAI_API_KEY=`，然后重新运行 `npm run app:dev`。
+要用项目实际可用的模型做真正拆解时：到 [智谱开放平台](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 创建 Key，填进 `.env` 的 `SYA_OPENAI_API_KEY=`，然后重新运行 `npm run app:dev`。
 
 ## 仓库结构
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import TypeVar
 from uuid import uuid4
@@ -58,9 +58,27 @@ class MemoryStore:
         self._voyage: Voyage | None = None
         self._task_tree: TaskNode | None = None
         self._projects: list[PlannedProject] = []
+        self._persisted_projects: list[PlannedProject] = []
 
         self._event_history: deque[DomainEvent] = deque(maxlen=event_history_maxlen)
         self._execution_log: deque[TaskExecutionSample] = deque(maxlen=event_history_maxlen)
+        self._after_change: Callable[[], Awaitable[None]] | None = None
+
+    def set_after_change(self, callback: Callable[[], Awaitable[None]] | None) -> None:
+        """Run after a project mutation. The callback must not be invoked while the store lock is held."""
+
+        self._after_change = callback
+
+    async def _changed(self) -> None:
+        if self._after_change is not None:
+            try:
+                await self._after_change()
+            except Exception:
+                # A rejected disk write must not leave a success-looking live
+                # tree that disappears at the next application restart.
+                await self.restore_projects(self._persisted_projects)
+                raise
+            self._persisted_projects = await self.list_projects()
 
     async def set_goal_context(self, *, goal: str, persona: str) -> None:
         """Persist latest top-level user objective and persona context."""
@@ -92,6 +110,7 @@ class MemoryStore:
             project.voyage.deadline_days = deadline_days
             project.voyage.updated_at = datetime.now(timezone.utc)
             node.title = goal
+        await self._changed()
 
     async def start_voyage(self, *, goal: str, persona: str, deadline_days: int | None = None) -> Voyage:
         """Open a new Voyage for one long-horizon 课题."""
@@ -150,6 +169,21 @@ class MemoryStore:
                 existing.tree = root
                 project = existing
             self._activate(project)
+        await self._changed()
+
+    async def restore_projects(self, projects: list[PlannedProject]) -> None:
+        """Replace the in-memory list from host-owned storage. Does not write."""
+
+        async with self._lock:
+            self._projects = [PlannedProject(p.voyage.model_copy(deep=True), p.tree.model_copy(deep=True)) for p in projects]
+            self._persisted_projects = [PlannedProject(p.voyage.model_copy(deep=True), p.tree.model_copy(deep=True)) for p in projects]
+            if self._projects:
+                self._activate(self._projects[-1])
+            else:
+                self._voyage = None
+                self._task_tree = None
+                self._goal = None
+                self._persona = None
 
     async def list_projects(self) -> list[PlannedProject]:
         """Return deep copies of every 课题, oldest first."""
@@ -185,6 +219,8 @@ class MemoryStore:
             if not candidates:
                 raise ValueError("Task tree is not initialized")
             missed: KeyError | None = None
+            result: T | None = None
+            changed = False
             for project in candidates:
                 try:
                     result = mutator(project.tree)
@@ -192,10 +228,14 @@ class MemoryStore:
                     missed = exc
                     continue
                 self._activate(project)
-                return result
-            if missed is not None:
-                raise missed
-            raise ValueError("Task tree is not initialized")
+                changed = True
+                break
+            if not changed:
+                if missed is not None:
+                    raise missed
+                raise ValueError("Task tree is not initialized")
+        await self._changed()
+        return result  # type: ignore[return-value]
 
     async def update_task_status(
         self,
@@ -236,7 +276,7 @@ class MemoryStore:
                 and node.status in TERMINAL_STATUSES
             )
 
-            return StatusTransition(
+            transition = StatusTransition(
                 task_id=node.task_id,
                 parent_id=node.parent_id,
                 old_status=old_status,
@@ -246,6 +286,8 @@ class MemoryStore:
                 actual_time=node.actual_time,
                 transitioned_to_terminal_leaf=transitioned_to_terminal_leaf,
             )
+        await self._changed()
+        return transition
 
     async def get_recent_execution_samples(self, window_size: int) -> list[TaskExecutionSample]:
         """Return a recency window of execution samples for progress evaluation."""
