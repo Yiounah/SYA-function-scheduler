@@ -112,18 +112,22 @@ const COPY = {
     "focusApply": "预览建议",
     "focusKeep": "保持当前作息",
     "dayGrain": "任务粒度",
-    "dayGrainHint": "为选定任务生成更细、标准或更粗的任务草案。检查并确认后才会调整，已完成和进行中的任务保留。",
+    "dayGrainHint": "选择固定 25、45、90 分钟，或自定义时长；四项只能选一项。确认草案后才会调整，已完成和进行中的任务保留。",
     "dayGrainNote": "系统只提出建议，确认草案后才调整未开始的任务。",
-    "grainFine": "更细",
-    "grainSteady": "标准",
-    "grainWide": "更粗",
+    "grainFine": "更细 · 25 分钟",
+    "grainSteady": "标准 · 45 分钟",
+    "grainWide": "更粗 · 90 分钟",
+    "grainCustom": "自定义时长",
+    "grainChooseOne": "粒度设定（四选一）",
+    "grainCustomDetail": "5–120 分钟；输入会切换到自定义，仅当前选项生效。",
+    "grainPresetDetail": "当前使用固定 {minutes} 分钟。输入下方时长会切换到自定义。",
     "grainFineDetail": "按目标时长拆分较长清单，请检查每段具体要做什么。",
     "grainSteadyDetail": "按目标时长拆分或合并未开始的同级清单。",
     "grainWideDetail": "合并适合连续处理的未开始清单。",
     "grainUseToday": "预览调整",
     "grainFineName": "更细",
     "grainSteadyName": "标准",
-    "grainWideName": "更宽",
+    "grainWideName": "更粗",
     "grainSuggestFineTitle": "把今天拆细",
     "grainSuggestWideTitle": "把今天的跨度放大",
     "grainSuggestOverdue": "今天有 {count} 项过了计划时间还未完成。可以预览约 25 分钟一段的安排，再检查每段的具体行动。",
@@ -347,11 +351,15 @@ const COPY = {
     "focusApply": "Preview suggestion",
     "focusKeep": "Keep current hours",
     "dayGrain": "Task granularity",
-    "dayGrainHint": "Preview finer, standard or coarser steps for selected work. Confirm before applying; completed and active tasks are preserved.",
+    "dayGrainHint": "Choose one fixed duration (25, 45 or 90 minutes), or a custom duration. Confirm the draft before applying; completed and active tasks are preserved.",
     "dayGrainNote": "This is a suggestion. Only confirmation changes not-yet-started tasks.",
-    "grainFine": "Finer",
-    "grainSteady": "Standard",
-    "grainWide": "Coarser",
+    "grainFine": "Finer · 25 min",
+    "grainSteady": "Standard · 45 min",
+    "grainWide": "Coarser · 90 min",
+    "grainCustom": "Custom duration",
+    "grainChooseOne": "Duration setting (choose one)",
+    "grainCustomDetail": "5–120 minutes. Typing selects custom; only the selected option applies.",
+    "grainPresetDetail": "Using a fixed {minutes} minutes. Entering a duration below switches to custom.",
     "grainFineDetail": "Split longer items by target duration; review what to do in each segment.",
     "grainSteadyDetail": "Split or combine unstarted sibling items to fit the target duration.",
     "grainWideDetail": "Combine suitable unstarted steps into a continuous block.",
@@ -476,7 +484,8 @@ const COPY = {
 
 const PROJECT_COLORS = ["#5aa779", "#0f766e", "#d97706", "#7c3aed", "#e11d48", "#16a34a", "#0891b2", "#c026d3"];
 
-const GRAIN_OPTIONS = { fine: { min: 5, max: 30, value: 25 }, steady: { min: 25, max: 60, value: 45 }, wide: { min: 45, max: 120, value: 90 } };
+// Exported from SYA-UI's granularity.ts with the shared calendar bundle.
+const { GRAIN_CHOICES, CUSTOM_GRAIN_MIN, CUSTOM_GRAIN_MAX, grainFromSaved, grainMinutes, grainRequest, validCustomTarget } = window.SyaSchedulerGrain;
 const CYCLE_FIELDS = { focusMinutes: ["focus-minutes", 45], breakMinutes: ["break-minutes", 5], recoveryMinutes: ["recovery-minutes", 15], cyclesBeforeRecovery: ["cycles", 4] };
 
 const state = {
@@ -515,8 +524,11 @@ const state = {
   copyToken: 0,
   slots: [],
   breaks: [],
+  calendarTasks: [],
   cycle: Object.fromEntries(Object.entries(CYCLE_FIELDS).map(([key, [, value]]) => [key, value])),
   loadToken: 0,
+  deskWriteVersion: 0,
+  deskWritesPending: 0,
   generationToken: 0,
   generationController: null,
   draft: null,
@@ -524,6 +536,7 @@ const state = {
   committing: false,
   monitor: null,
   pendingStatus: new Set(),
+  customGrainMinutes: 45,
 };
 
 const toast = document.getElementById("toast");
@@ -764,6 +777,8 @@ function sharedDeskBody() {
 }
 
 async function pushSharedDesk() {
+  state.deskWriteVersion++;
+  state.deskWritesPending++;
   try {
     const metadata = sharedDeskBody().focusflow;
     await requestJson("/api/scheduler/config", { method: "PUT", body: JSON.stringify({ focusflow: {
@@ -774,7 +789,7 @@ async function pushSharedDesk() {
   } catch (error) {
     showSyncError(error.message || t("configFailed"));
     return false;
-  }
+  } finally { state.deskWritesPending--; }
 }
 
 function applySharedValue(key, value) {
@@ -783,8 +798,13 @@ function applySharedValue(key, value) {
 }
 
 async function pullSharedDesk() {
+  if (state.deskWritesPending) return;
+  const version = state.deskWriteVersion;
   try {
     const config = await requestJson("/api/scheduler/config");
+    // A focus-triggered read must not restore metadata from before a local
+    // dismissal/work-log write and reopen a dialog the user just dismissed.
+    if (state.deskWritesPending || version !== state.deskWriteVersion) return;
     const desk = config.focusflow && typeof config.focusflow === "object" ? config.focusflow : {};
     if (!state.treeDisclosureDirty && !state.treeDisclosureSaving && desk.treeDisclosure && typeof desk.treeDisclosure === "object" && !Array.isArray(desk.treeDisclosure)) {
       state.treeDisclosure = desk.treeDisclosure;
@@ -1096,38 +1116,44 @@ function renderHeader() {
   document.getElementById("progress-label").textContent = `${Math.round(ratio * 100)}%`;
 }
 
-function dayItemHtml(item, from, to, label) {
-  const done = item.node.status === "DONE";
-  return `
-    <div class="day-item${done ? " done" : ""}" style="--frame:${item.color}">
-      <time>${slotLabel(from, to)}</time>
-      <button type="button" data-project-id="${escapeHtml(item.projectId)}" data-milestone-id="${escapeHtml(item.stage.task_id)}" data-subtask-id="${escapeHtml(item.subtask.task_id)}">
-        <strong>${escapeHtml(label)} <em class="status-tag ${nodeKind(item.node)}">${escapeHtml(t(item.node.status === "DONE" ? "doneStatus" : item.node.status === "IN_PROGRESS" ? "activeStatus" : item.node.status === "BLOCKED" ? "blockedStatus" : item.node.status === "SKIPPED" ? "skippedStatus" : "pendingStatus"))}</em></strong>
-        <span>${escapeHtml(taskTitle(item.stage))} · ${escapeHtml(taskTitle({ task_id: item.projectId, title: item.projectTitle }))}</span>
-      </button>
-      <input type="checkbox" aria-label="${escapeHtml(label)}" data-task-id="${escapeHtml(item.node.task_id)}" ${done ? "checked" : ""} ${state.pendingStatus.has(item.node.task_id) ? "disabled" : ""} />
-    </div>`;
-}
-
 function renderDay(plan) {
-  const rows = plan.flatMap((item) => item.slots.filter((slot) => sameDay(slot.date, state.focus))
-    .filter(() => matchesSearch(item.node) || matchesSearch(item.stage) || matchesSearch(item.subtask))
-    .map((slot) => ({ item, slot })));
-  rows.sort((left, right) => left.slot.from - right.slot.from);
   const board = document.getElementById("board");
   board.className = "day-agenda";
-  const display = [];
-  rows.forEach(({ item, slot }) => {
-    const last = display[display.length - 1];
-    if (last && last.item.node.task_id === item.node.task_id && last.slot.to === slot.from) last.slot.to = slot.to;
-    else display.push({ item, slot: { ...slot } });
+  let mount = document.getElementById("sya-action-calendar");
+  if (!mount) {
+    mount = document.createElement("div");
+    mount.id = "sya-action-calendar";
+    board.replaceChildren(mount);
+  }
+  const date = ymd(state.focus);
+  const matching = new Set(plan.filter(item => matchesSearch(item.node) || matchesSearch(item.stage) || matchesSearch(item.subtask)).map(item => item.node.task_id));
+  // Render the host's actual ScheduleCalendar + TaskEditor, not a parallel calendar.
+  window.SyaSchedulerCalendar.render(mount, {
+    tasks: state.calendarTasks.filter(task => matching.has(task.id)),
+    events: state.slots.filter(slot => slot.date === date || slot.startTime?.slice(0, 10) === date),
+    breaks: state.breaks.filter(slot => slot.date === date),
+    date, loaded: true, busy: state.pendingStatus.size > 0,
+    title: state.locale === "en" ? "Daily action calendar" : "每日行动日历",
+    onDate: value => { state.focus = parseYmd(value); renderAll(); },
+    onView: view => setNav({ day: "day", week: "timeline", month: "calendar" }[view]),
+    onSaveTask: task => saveCalendarTask(task.id, {
+      title: task.title.trim(), description: task.description, deadline: task.deadline,
+      scheduledDate: task.scheduledDate ?? null,
+    }),
+    onComplete: task => saveCalendarTask(task.id, { status: "completed" }),
+    onFocus: async (task, minutes) => {
+      await saveTreeDisclosure();
+      // The desktop shell owns this same-origin handoff to SYA's existing Focus page.
+      window.open(`/sya-focus?${new URLSearchParams({ taskId: task.id, minutes: String(minutes) })}`, "_blank", "noopener");
+    },
   });
-  const agenda = display.map(({ item, slot }) => ({ from: slot.from, html: dayItemHtml(item, slot.from, slot.to, taskTitle(item.node)) }));
-  state.breaks.filter((slot) => slot.date === ymd(state.focus)).forEach((slot) => {
-    agenda.push({ from: minutesFromClock(slot.start), html: `<div class="break-item"><time>${escapeHtml(slot.start)}–${escapeHtml(slot.end)}</time><span>${escapeHtml(t(slot.kind === "recovery" ? "longBreak" : "shortBreak"))}</span><span class="status-tag">${minutesFromClock(slot.end) - minutesFromClock(slot.start)} min</span></div>` });
-  });
-  board.innerHTML = agenda.sort((a, b) => a.from - b.from).map((row) => row.html).join("")
-    || `<div class="empty">${escapeHtml(state.projects.length ? t("emptyDay") : t("emptyBoard"))}</div>`;
+}
+
+async function saveCalendarTask(taskId, patch) {
+  await saveTreeDisclosure();
+  await requestJson(`/api/scheduler/tasks/${encodeURIComponent(taskId)}`, { method: "PUT", body: JSON.stringify(patch) });
+  if (patch.status === "completed") noteActualWork(taskId, "DONE");
+  if (await fetchTree(true) === false) throw new Error(t("syncFailed"));
 }
 
 function renderTimeline(plan) {
@@ -1356,6 +1382,10 @@ async function moveTreeNode(taskId, direction) {
 
 function renderBoard() {
   const board = document.getElementById("board");
+  const calendar = document.getElementById("sya-action-calendar");
+  if (state.nav !== "day" && calendar) window.SyaSchedulerCalendar.unmount(calendar);
+  document.querySelector("#timeline-card > .card-head").hidden = state.nav === "day";
+  document.getElementById("calendar-note").hidden = state.nav === "day";
   const scrollLeft = board.scrollLeft;
   const content = document.querySelector(".content");
   const scrollTop = content.scrollTop;
@@ -1505,13 +1535,15 @@ async function requestJson(path, options = {}) {
 async function fetchTree(showErrors = false, preferredId = null) {
   const token = ++state.loadToken;
   try {
-    const [payload, timeline] = await Promise.all([
+    const [payload, timeline, calendarTasks] = await Promise.all([
       requestJson("/api/v1/projects"),
       requestJson(`/api/scheduler/timeline?projectId=all&timezone=${encodeURIComponent(timezone())}`),
+      requestJson("/api/scheduler/tasks?projectId=all"),
     ]);
-    if (token !== state.loadToken) return false;
+    if (token !== state.loadToken) return null;
     state.slots = timeline.slots || timeline.events || [];
     state.breaks = timeline.breaks || [];
+    state.calendarTasks = calendarTasks;
     ingestProjects(payload.projects, preferredId || state.selectedProjectId);
     renderAll();
     showSyncError("");
@@ -1519,7 +1551,7 @@ async function fetchTree(showErrors = false, preferredId = null) {
     ensureLocaleCopy();
     return true;
   } catch (error) {
-    if (token !== state.loadToken) return false;
+    if (token !== state.loadToken) return null;
     showSyncError(t("syncFailed"));
     if (showErrors) showToast(readableError(error));
     return false;
@@ -2010,6 +2042,7 @@ function suggestFocusWindow(log) {
 }
 function focusDialogBusy() {
   return document.getElementById("draft-dialog").open || state.committing
+    || Boolean(document.getElementById("sya-action-calendar")?.shadowRoot?.querySelector('dialog[open]'))
     || entryModal.classList.contains("open")
     || scheduleModal.classList.contains("open")
     || modal.classList.contains("open")
@@ -2070,20 +2103,23 @@ function currentDayGrain() {
   const today = ymd(startOfDay(new Date()));
   try {
     const parsed = JSON.parse(window.localStorage.getItem("focusflow.dayGrain") || "{}");
-    if (parsed[today] === "fine" || parsed[today] === "wide" || parsed[today] === "steady") return parsed[today];
+    if (GRAIN_CHOICES.includes(parsed[today])) return grainFromSaved(parsed[today], state.appliedGrainTarget ?? undefined);
   } catch {
     // Keep the steady span when the saved value cannot be read.
   }
   return "steady";
 }
 function grainName(grain) {
+  if (grain === "custom") return t("grainCustom");
   if (grain === "fine") return t("grainFineName");
   if (grain === "wide") return t("grainWideName");
   return t("grainSteadyName");
 }
 function renderDayGrainButton() {
   const button = document.getElementById("open-day-grain");
-  const label = `${t("dayGrain")} · ${grainName(currentDayGrain())}${state.appliedGrainTarget ? ` ${state.appliedGrainTarget}m` : ""}`;
+  const grain = currentDayGrain();
+  const minutes = grainMinutes(grain, state.appliedGrainTarget ?? 45);
+  const label = `${t("dayGrain")} · ${grainName(grain)} ${minutes}m`;
   button.textContent = label;
   button.setAttribute("aria-label", label);
 }
@@ -2185,29 +2221,30 @@ async function applyDayGrain(grain) {
   const owner = state.projects.find((project) => walkNodes(project.tree).some((node) => node.task_id === taskId));
   if (!owner) return showToast(t("noAdjustableTask"));
   const targetInput = document.getElementById("grain-target-minutes");
-  if (!targetInput.reportValidity()) return;
+  if (grain === "custom" && !targetInput.reportValidity()) return;
   await generateDraft({ path: "/api/scheduler/granularity/preview", kind: "granularity", grain,
-    body: { projectId: owner.tree.task_id, taskId, targetMinutes: Number(targetInput.value), level: { fine: "finer", steady: "standard", wide: "coarser" }[grain],
+    body: { projectId: owner.tree.task_id, taskId, ...grainRequest(grain, Number(targetInput.value)),
       reason: state.monitor?.reason || state.dayGrainSuggestion?.reason || "manual", ...(state.monitor?.taskId === taskId && state.monitor?.focusSessionId ? { focusSessionId: state.monitor.focusSessionId } : {}) },
   });
 }
 
 function paintGrainChoices(grain, resetTarget = true) {
   state.pendingGrain = grain;
-  document.querySelectorAll("#grain-choices .grain-choice").forEach((button) => {
-    button.classList.toggle("selected", button.dataset.grain === grain);
+  document.querySelectorAll('#grain-choices input[name="grain-mode"]').forEach((radio) => {
+    radio.checked = radio.value === grain;
+    radio.closest(".grain-choice")?.classList.toggle("selected", radio.checked);
   });
-  const detailKey = grain === "fine" ? "grainFineDetail" : grain === "wide" ? "grainWideDetail" : "grainSteadyDetail";
+  document.getElementById("grain-custom").classList.toggle("selected", grain === "custom");
   const input = document.getElementById("grain-target-minutes");
-  const option = GRAIN_OPTIONS[grain];
-  input.min = String(option.min);
-  input.max = String(option.max);
-  if (resetTarget) input.value = String(grain === currentDayGrain() && state.appliedGrainTarget >= option.min && state.appliedGrainTarget <= option.max ? state.appliedGrainTarget : option.value);
-  document.getElementById("grain-detail").textContent = t("targetRange", { min: option.min, max: option.max, detail: t(detailKey) });
+  input.min = String(CUSTOM_GRAIN_MIN);
+  input.max = String(CUSTOM_GRAIN_MAX);
+  if (resetTarget) input.value = Number.isNaN(state.customGrainMinutes) ? "" : String(state.customGrainMinutes);
+  document.getElementById("grain-detail").textContent = grain === "custom" ? t("grainCustomDetail") : t("grainPresetDetail", { minutes: grainMinutes(grain, state.customGrainMinutes) });
+  updateGrainSelection();
 }
 function updateGrainSelection() {
   const taskId = document.getElementById("grain-target").value;
-  document.getElementById("grain-apply").disabled = !taskId;
+  document.getElementById("grain-apply").disabled = !taskId || (state.pendingGrain === "custom" && !validCustomTarget(document.getElementById("grain-target-minutes").valueAsNumber));
   const nodes = state.projects.flatMap((project) => walkNodes(project.tree));
   let target = nodes.find((node) => node.task_id === taskId);
   if (target?.status === "IN_PROGRESS" && target.parent_id) target = nodes.find((node) => node.task_id === target.parent_id) || target;
@@ -2218,6 +2255,7 @@ function updateGrainSelection() {
 
 function openDayGrain() {
   if (!state.projects.length) return showToast(t("noAdjustableTask"));
+  if (currentDayGrain() === "custom" && validCustomTarget(state.appliedGrainTarget)) state.customGrainMinutes = state.appliedGrainTarget;
   paintGrainChoices(currentDayGrain());
   const options = state.projects.flatMap((project) => {
     const unfinished = walkNodes(project.tree).filter((node) => node.task_id !== project.tree.task_id && (node.task_id === state.monitor?.taskId || collectLeaves(node).some((leaf) => !["DONE", "SKIPPED", "IN_PROGRESS"].includes(leaf.status))));
@@ -2321,10 +2359,13 @@ document.getElementById("grain-cancel").addEventListener("click", () => {
 });
 document.getElementById("grain-target").addEventListener("change", updateGrainSelection);
 document.getElementById("grain-apply").addEventListener("click", () => applyDayGrain(state.pendingGrain || currentDayGrain()));
-document.getElementById("grain-choices").addEventListener("click", (event) => {
-  const choice = event.target.closest("[data-grain]");
-  if (!choice) return;
-  paintGrainChoices(choice.dataset.grain);
+document.getElementById("grain-choices").addEventListener("change", (event) => {
+  if (event.target.name === "grain-mode") paintGrainChoices(event.target.value);
+});
+document.getElementById("grain-target-minutes").addEventListener("focus", () => paintGrainChoices("custom", false));
+document.getElementById("grain-target-minutes").addEventListener("input", (event) => {
+  state.customGrainMinutes = event.target.valueAsNumber;
+  paintGrainChoices("custom", false);
 });
 document.getElementById("grain-modal").addEventListener("click", (event) => {
   if (event.target.id === "grain-modal") document.getElementById("grain-modal").classList.remove("open");

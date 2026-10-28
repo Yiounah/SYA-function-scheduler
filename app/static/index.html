@@ -207,15 +207,19 @@
     <div class="modal" id="grain-modal" role="dialog" aria-modal="true" aria-labelledby="grain-title">
       <div class="modal-card stack">
         <div><p class="eyebrow">GRANULARITY</p><h2 id="grain-title" data-i18n="dayGrain">任务粒度</h2></div>
-        <p class="hint" data-i18n="dayGrainHint">为选定任务生成更细、标准或更粗的任务草案。检查并确认后才会调整，已完成和进行中的任务保留。</p>
+        <p class="hint" data-i18n="dayGrainHint">选择固定 25、45、90 分钟，或自定义时长；四项只能选一项。确认草案后才会调整，已完成和进行中的任务保留。</p>
         <label><span data-i18n="adjustTarget">调整范围</span><select id="grain-target"></select></label>
         <p class="hint" id="grain-reason" hidden></p>
-        <div class="grain-choices" id="grain-choices">
-          <button class="grain-choice" type="button" data-grain="fine" data-i18n="grainFine">更细 · 25 分钟</button>
-          <button class="grain-choice" type="button" data-grain="steady" data-i18n="grainSteady">适中 · 45 分钟</button>
-          <button class="grain-choice" type="button" data-grain="wide" data-i18n="grainWide">更宽 · 90 分钟</button>
-        </div>
-        <div class="target-duration"><label><span data-i18n="targetMinutes">每个步骤的目标时长（分钟）</span><input id="grain-target-minutes" type="number" min="5" max="30" step="1" value="25" required aria-describedby="grain-detail" /></label><p class="hint" id="grain-detail"></p></div>
+        <fieldset class="grain-choices" id="grain-choices">
+          <legend data-i18n="grainChooseOne">粒度设定（四选一）</legend>
+          <label class="grain-choice" data-grain="fine"><input type="radio" name="grain-mode" value="fine" /><span data-i18n="grainFine">更细 · 25 分钟</span></label>
+          <label class="grain-choice" data-grain="steady"><input type="radio" name="grain-mode" value="steady" /><span data-i18n="grainSteady">标准 · 45 分钟</span></label>
+          <label class="grain-choice" data-grain="wide"><input type="radio" name="grain-mode" value="wide" /><span data-i18n="grainWide">更粗 · 90 分钟</span></label>
+          <div class="target-duration grain-custom" id="grain-custom">
+            <label class="grain-custom-label"><input type="radio" name="grain-mode" value="custom" data-grain="custom" /><span data-i18n="grainCustom">自定义时长</span></label>
+            <label><span data-i18n="targetMinutes">每个步骤的目标时长（分钟）</span><input id="grain-target-minutes" type="number" min="5" max="120" step="1" value="45" required aria-describedby="grain-detail" /></label><p class="hint" id="grain-detail"></p>
+          </div>
+        </fieldset>
         <p class="selection-summary" id="grain-selection-summary" aria-live="polite"></p>
         <div class="detail-actions">
           <button class="secondary" id="grain-cancel" type="button" data-i18n="cancel">取消</button>
@@ -264,6 +268,7 @@
     </dialog>
     <div id="toast" class="toast" aria-live="polite"></div>
 
+    <script src="/static/shared/sya-calendar.js" defer></script>
     <script src="/static/app.js" defer></script>
   </body>
 </html>

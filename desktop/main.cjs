@@ -3,6 +3,7 @@ const { spawn } = require('node:child_process');
 const { createWriteStream, mkdirSync } = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
+const { focusRequest, findSyaApp, hostUserDataDirectory } = require('./sya-focus.cjs');
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_MS = 150;
@@ -150,6 +151,26 @@ function installMenu(baseUrl, logPath) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function openSyaFocus(request) {
+  try {
+    if (app.isPackaged) throw new Error('The local source-app handoff is unavailable in a packaged Scheduler.');
+    const host = findSyaApp(app.getAppPath(), process.env.SYA_UI_ROOT);
+    const userData = hostUserDataDirectory(process.env.SYA_UI_USER_DATA_DIR);
+    const launcher = spawn(process.execPath, [path.join(host, 'scripts/electron-dev.mjs'), `--sya-focus-task=${request.taskId}`, `--sya-focus-minutes=${request.minutes}`], {
+      cwd: host,
+      env: {...process.env, ELECTRON_RUN_AS_NODE:'1', ...(userData ? {SYA_UI_USER_DATA_DIR:userData} : {})},
+      detached: true,
+      stdio: 'ignore',
+    });
+    const failed = () => {if (!isQuitting) dialog.showErrorBox('无法打开专注', '请先启动本地 SYA-UI 主应用，再回到每日行动日历重试。任务仍保留在规划中。');};
+    launcher.once('error', failed);
+    launcher.once('exit', code => {if (code !== 0) failed();});
+    launcher.unref();
+  } catch {
+    dialog.showErrorBox('无法打开专注', '开始专注需要本地 SYA-UI 主应用。请确认两个源码项目放在同一目录并已完成安装，然后启动 SYA-UI。');
+  }
+}
+
 async function createWindow(baseUrl, logPath) {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -166,7 +187,14 @@ async function createWindow(baseUrl, logPath) {
     },
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url, referrer }) => {
+    let target;
+    try { target = new URL(url); } catch { /* Preserve the normal popup policy. */ }
+    if (target?.origin === baseUrl && target.pathname === '/sya-focus') {
+      const request = focusRequest(url, baseUrl, referrer.url);
+      if (request) setImmediate(() => openSyaFocus(request));
+      return { action: 'deny' };
+    }
     if (url.startsWith('http://') || url.startsWith('https://')) void shell.openExternal(url);
     return { action: 'deny' };
   });

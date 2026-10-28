@@ -77,14 +77,33 @@ class GranularityTests(unittest.TestCase):
         self.assertEqual(summary['beforeMinutes'], summary['afterMinutes'])
         self.assertFalse(adjust(fractional, fractional.task_id, 'finer', 20)['changed'])
 
-    def test_target_boundaries_are_mode_specific_and_strict(self):
-        for level, low, high, default in [('finer', 5, 30, 25), ('standard', 25, 60, 45), ('coarser', 45, 120, 90)]:
+    def test_fixed_presets_and_independent_custom_boundaries_are_strict(self):
+        for level, default in [('finer', 25), ('standard', 45), ('coarser', 90)]:
             self.assertEqual(target_minutes(level, None), default)
-            for valid in (low, high):
-                self.assertEqual(target_minutes(level, valid), valid)
-            for invalid in (low - 1, high + 1, True, '25', 25.5):
+            self.assertEqual(target_minutes(level, default), default)
+            for invalid in (default - 1, default + 1, True, '25', 25.5):
                 with self.assertRaises(ValueError):
                     target_minutes(level, invalid)
+        for valid in (5, 15, 35, 75, 120):
+            self.assertEqual(target_minutes('custom', valid), valid)
+        for invalid in (None, 4, 121, True, '25', 25.5):
+            with self.assertRaises(ValueError):
+                target_minutes('custom', invalid)
+
+    def test_custom_reuses_split_and_compatible_adjacent_merge_without_touching_execution(self):
+        root = tree((70, 15, 15, 20))
+        root.find_node('p-3').status = TaskStatus.IN_PROGRESS
+        protected = root.find_node('p-3').model_dump()
+        shorter = adjust(root, 'p-0', 'custom', 20)
+        self.assertEqual(shorter['beforeMinutes'], shorter['afterMinutes'])
+        self.assertEqual(len([n for n in root.iter_leaves() if 'p-0' in n.source_task_ids]), 4)
+        self.assertTrue(all(n.estimated_time * 60 <= 20 for n in root.iter_leaves()))
+        longer = adjust(root, 'p-1', 'custom', 35)
+        self.assertTrue(longer['changed'])
+        self.assertEqual(root.find_node('p-1').source_task_ids, ['p-1', 'p-2'])
+        self.assertEqual(root.find_node('p-1').estimated_time, .5)
+        self.assertEqual(root.find_node('p-3').model_dump(), protected)
+        self.assertEqual(longer['beforeMinutes'], longer['afterMinutes'])
 
 
 class CalendarCycleTests(unittest.TestCase):
@@ -206,11 +225,50 @@ class AdjustmentAPITests(unittest.TestCase):
         calendar = self.client.get('/api/scheduler/timeline', params={'projectId': 'all'}).json()['data']
         self.assertEqual([(s['taskId'], s['startTime'], s['endTime']) for s in draft['proposedSlots']], [(s['taskId'], s['startTime'], s['endTime']) for s in calendar['events']])
         config = self.client.get('/api/scheduler/config').json()['data']
+        self.assertEqual(draft['context']['level'], 'custom')
+        self.assertEqual(config['todayGrain']['level'], 'custom')
         self.assertEqual(config['todayGrain']['targetMinutes'], 20)
         nochange = self.preview('granularity', {'taskId': 'a-root', 'level': 'finer', 'targetMinutes': 20})
         self.assertFalse(nochange['canCommit'])
         self.assertEqual(self.commit(nochange, 'noop').json()['error']['code'], 'NO_CHANGES')
         self.assertEqual(self.client.delete(f"/api/scheduler/plans/{nochange['draftId']}").status_code, 200)
+
+    def test_presets_have_fixed_targets_and_custom_choice_survives_confirmation_and_restart(self):
+        self.assertEqual(self.client.post('/api/scheduler/plans/confirm', json={'tree': tree((20, 20, 20, 60)).model_dump(mode='json')}).status_code, 200)
+        for level, expected in [('finer', 25), ('standard', 45), ('coarser', 90)]:
+            draft = self.preview('granularity', {'taskId': 'p-root', 'level': level})
+            self.assertEqual(draft['context']['level'], level)
+            self.assertEqual(draft['context']['targetMinutes'], expected)
+            self.assertEqual(draft['changeSummary']['targetMinutes'], expected)
+            self.assertEqual(self.client.delete(f"/api/scheduler/plans/{draft['draftId']}").status_code, 200)
+        custom = self.preview('granularity', {'taskId': 'p-root', 'level': 'custom', 'targetMinutes': 35})
+        self.assertEqual(custom['context']['level'], 'custom')
+        self.assertEqual(custom['changeSummary']['beforeMinutes'], custom['changeSummary']['afterMinutes'])
+        self.assertEqual(self.commit(custom, 'custom-35').status_code, 200)
+        config = self.client.get('/api/scheduler/config').json()['data']
+        self.assertEqual(config['todayGrain']['level'], 'custom')
+        self.assertEqual(config['todayGrain']['targetMinutes'], 35)
+        day = config['todayGrain']['date']
+        self.assertEqual(config['focusflow']['dayGrain'][day], 'custom')
+        self.client.__exit__(None, None, None)
+        self.app = application(); self.client = TestClient(self.app); self.client.__enter__()
+        self.assertEqual(self.client.get('/api/scheduler/config').json()['data']['todayGrain'], config['todayGrain'])
+        preset = self.preview('granularity', {'taskId': 'p-root', 'level': 'coarser'})
+        self.assertEqual(preset['context']['targetMinutes'], 90)
+        self.assertEqual(self.commit(preset, 'preset-after-custom').status_code, 200)
+        self.assertEqual(self.client.get('/api/scheduler/config').json()['data']['todayGrain']['level'], 'wide')
+
+    def test_invalid_custom_duration_does_not_change_the_saved_plan(self):
+        self.assertEqual(self.client.post('/api/scheduler/plans/confirm', json={'tree': tree().model_dump(mode='json')}).status_code, 200)
+        before = self.client.get('/api/v1/projects').json()
+        for value in (None, 4, 121, True, '25', 25.5):
+            body = {'taskId': 'p-root', 'level': 'custom'}
+            if value is not None:
+                body['targetMinutes'] = value
+            response = self.client.post('/api/scheduler/granularity/preview', json=body)
+            self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.client.get('/api/v1/projects').json(), before)
+        self.assertNotIn('todayGrain', self.client.get('/api/scheduler/config').json()['data'])
 
     def test_cycle_preference_without_projects_is_saved_and_same_preview_cannot_commit(self):
         body = {'workStart': '09:00', 'workEnd': '18:00', 'focusMinutes': 25, 'breakMinutes': 5, 'recoveryMinutes': 15, 'cyclesBeforeRecovery': 4, 'date': '2026-10-27'}

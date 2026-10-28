@@ -22,6 +22,7 @@
     "timeline-scheduling",
     "task-storage",
     "hierarchical-task-tree",
+    "custom-task-granularity",
     "rolling-wave-planning",
     "adaptive-replanning",
     "voyage-runtime"

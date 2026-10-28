@@ -862,7 +862,7 @@
     "/api/scheduler/granularity/preview": {
       "post": {
         "operationId": "granularity.preview",
-        "summary": "Preview duration-based edits to unstarted work; leaf coarsening includes compatible adjacent siblings only",
+        "summary": "Preview fixed 25/45/90-minute presets or an independent custom target",
         "responses": {
           "200": {
             "description": "Function response",
@@ -920,9 +920,11 @@
                       "finer",
                       "standard",
                       "coarser",
+                      "custom",
                       "fine",
                       "coarse"
-                    ]
+                    ],
+                    "description": "Fixed presets or independent custom duration. fine/coarse are legacy aliases; omit targetMinutes for a fixed preset."
                   },
                   "reason": {
                     "type": "string"
@@ -934,13 +936,46 @@
                     "type": "integer",
                     "minimum": 5,
                     "maximum": 120,
-                    "description": "Mode-specific duration budget: finer 5–30 (default 25); standard 25–60 (default 45); coarser 45–120 (default 90). Duration edits preserve work/source IDs and never claim semantic decomposition."
+                    "description": "Required for custom: integer 5–120. Presets are fixed at 25/45/90; a legacy preset request with a different explicit duration is treated as custom. The returned context.level identifies the normalized choice."
                   }
-                }
+                },
+                "allOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "level": {
+                            "enum": [
+                              "custom"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "targetMinutes"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "level": {
+                            "enum": [
+                              "finer",
+                              "standard",
+                              "coarser",
+                              "fine",
+                              "coarse"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
-        }
+        },
+        "description": "Choose one duration setting: finer (25), standard (45), coarser (90), or custom with targetMinutes (5–120). Custom reuses duration-based splitting and compatible adjacent-sibling merging; executed work and total estimates are preserved. For compatibility, legacy preset calls with a different explicit targetMinutes are normalized and persisted as custom."
       }
     },
     "/api/scheduler/routine/preview": {

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "sourceRepository": "https://github.com/jacobavalanchel/SYA-UI",
+  "rebuild": "npm run build:scheduler-calendar --workspace app -- --out-dir <scheduler>/app/static/shared",
+  "entry": "app/src/features/scheduler/calendar-embed.tsx",
+  "sourceHashes": {
+    "app/src/features/scheduler/calendar-embed.tsx": "65404bf5d739b0cd66328623f928f1e0849fd291badf97144dafbc240c2d58d2",
+    "app/src/features/scheduler/ScheduleCalendar.tsx": "a1925f20a4152f79818228129781578c97dd79c10759ba29fce40f52402a4544",
+    "app/src/features/scheduler/TaskEditor.tsx": "519c06af4a82ad4d71bcd993bba318d97c51c5ce87ba04b1f12886da69d73726",
+    "app/src/features/scheduler/model.ts": "793065694be4112e8b94c787f0db1093391a8c2fe97812f8db79f96f54070c70",
+    "app/src/features/scheduler/granularity.ts": "b06ca02dbbfdf301c8c845024bb96ad6bb79f4080a9817ecd19a06577a32663f",
+    "app/src/index.css": "5bc4659b10ad93cc123f544fc02764ac4c696bb1e763734eea59cf1bd095aa46",
+    "app/src/pet-ui.css": "c7264bd0d1fd0412ee9098825de855a568784856779e8d2328bc6f71964bdb25",
+    "app/tailwind.config.cjs": "1076b1789da85747100cfe9c326759d468dd7304189d9edc42d058b89481881b",
+    "app/scripts/build-scheduler-calendar.mjs": "92ccf9723b197a86472de2581c8610532124b1f169baebc3dc99fededb12f141"
+  },
+  "dependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "scheduler": "0.27.0",
+    "lucide-react": "0.562.0"
+  },
+  "assets": {
+    "sya-calendar.js": "9eb6fec0cb45dbcbbfc8e3a4939fbd08c490f5d20f8f6eddf86a596f8db63981",
+    "sya-calendar.js.LEGAL.txt": "781401a74effa9a866bb730d2041e8f2fc9b6be6ab8dcb7a337704d702c6d8cc",
+    "sya-calendar.css": "045016838c203028e12dd9459771704826aa08119aea6f44b263cfdda41d823d",
+    "LICENSES.txt": "06e1a56768f1248a311a632d8ec5301dbb18228964e02c87fd6e47d2e61e81cd"
+  }
+}

@@ -69,6 +69,12 @@ class FocusFlowAppTests(unittest.TestCase):
         self.assertEqual(style.status_code, 200)
         self.assertIn('javascript', script.headers['content-type'])
         self.assertIn('text/css', style.headers['content-type'])
+        for asset, content_type in [('shared/sya-calendar.js', 'javascript'), ('shared/sya-calendar.css', 'text/css')]:
+            shared = self.client.get('/static/' + asset)
+            self.assertEqual(shared.status_code, 200)
+            self.assertIn(content_type, shared.headers['content-type'])
+        self.assertEqual(self.client.get('/static/shared/source-manifest.json').status_code, 404)
+        self.assertEqual(self.client.get('/static/shared/%2e%2e/%2e%2e/api/ui.py').status_code, 404)
         self.assertEqual(self.client.get('/static/index.html').status_code, 404)
         self.assertIn("今日粒度", response.text)
         self.assertIn('data-lang="en"', response.text)
@@ -218,6 +224,8 @@ class FocusFlowAppTests(unittest.TestCase):
             denied = self.client.get("/api/v1/projects")
             self.assertEqual(denied.status_code, 401)
             self.assertEqual(self.client.get('/static/app.js').status_code, 401)
+            self.assertEqual(self.client.get('/static/shared/sya-calendar.js').status_code, 401)
+            self.assertEqual(self.client.get('/static/shared/sya-calendar.css', headers={'Authorization': 'Bearer secret-token'}).status_code, 200)
             self.assertEqual(self.client.get('/static/styles.css', headers={'Authorization': 'Bearer secret-token'}).status_code, 200)
             wrong = self.client.get(
                 "/health",

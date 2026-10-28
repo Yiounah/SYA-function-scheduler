@@ -18,9 +18,11 @@ async def app_ui() -> FileResponse:
     return FileResponse(APP_UI)
 
 
-@router.get('/static/{filename}', include_in_schema=False)
+@router.get('/static/{filename:path}', include_in_schema=False)
 async def app_asset(filename: str) -> FileResponse:
-    """Serve only the two public UI assets through the same runtime gate."""
-    if filename not in {'app.js', 'styles.css'} or not (APP_UI.parent / filename).is_file():
+    """Serve the explicit UI asset allowlist through the same runtime gate."""
+    public_assets = {'app.js', 'styles.css', 'shared/sya-calendar.js', 'shared/sya-calendar.css',
+                     'shared/sya-calendar.js.LEGAL.txt', 'shared/LICENSES.txt'}
+    if filename not in public_assets or not (APP_UI.parent / filename).is_file():
         raise HTTPException(status_code=404, detail='Asset not found')
     return FileResponse(APP_UI.parent / filename)

@@ -59,6 +59,7 @@ FUNCTION_MANIFEST: dict[str, Any] = {
         "timeline-scheduling",
         "task-storage",
         "hierarchical-task-tree",
+        "custom-task-granularity",
         "rolling-wave-planning",
         "adaptive-replanning",
         "voyage-runtime",
@@ -372,7 +373,7 @@ class GranularityPreviewRequest(BaseModel):
 
     projectId: str | None = None
     taskId: str = Field(min_length=1)
-    level: str = "finer"
+    level: str = Field(default="finer", description="Fixed finer/standard/coarser presets (25/45/90), or custom with targetMinutes.")
     reason: str | None = None
     focusSessionId: str | None = None
     targetMinutes: int | None = Field(default=None, strict=True, ge=5, le=120)

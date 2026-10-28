@@ -284,6 +284,15 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 .grain-choice { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: center; padding: 11px; color: var(--ink); }
 .grain-choice.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-strong); font-weight: 600; }
 
+/* Native radio inputs keep presets and custom duration mutually exclusive. */
+#grain-choices { margin: 0; padding: 0; border: 0; }
+#grain-choices legend { margin-bottom: 10px; color: var(--muted); font-size: 13px; }
+#grain-choices .grain-choice { display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+#grain-choices input[type="radio"] { width: auto; margin: 0; accent-color: var(--primary); }
+#grain-choices .grain-custom { grid-column: 1 / -1; }
+#grain-choices .grain-custom.selected { border-color: var(--primary); background: var(--primary-soft); }
+#grain-choices .grain-custom-label { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
 .week-board { display: grid; gap: 8px; }
 .week-head, .week-row {
   display: grid;

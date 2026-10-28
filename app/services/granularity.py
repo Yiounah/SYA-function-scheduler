@@ -9,7 +9,7 @@ from uuid import uuid4
 from app.models.task_tree import TaskNode, TaskStatus
 from app.services.timeline import minutes
 
-TARGETS = {'finer': (5, 30, 25), 'standard': (25, 60, 45), 'coarser': (45, 120, 90)}
+TARGETS = {'finer': 25, 'standard': 45, 'coarser': 90}
 
 
 def adjustable(node: TaskNode) -> bool:
@@ -17,13 +17,15 @@ def adjustable(node: TaskNode) -> bool:
 
 
 def target_minutes(level: str, supplied: int | None) -> int:
+    if level == 'custom':
+        if type(supplied) is not int or not 5 <= supplied <= 120:
+            raise ValueError('Custom targetMinutes must be an integer between 5 and 120.')
+        return supplied
     if level not in TARGETS:
-        raise ValueError('Choose finer, standard, or coarser.')
-    low, high, default = TARGETS[level]
-    value = default if supplied is None else supplied
-    if type(value) is not int or not low <= value <= high:
-        raise ValueError(f'{level} targetMinutes must be an integer between {low} and {high}.')
-    return value
+        raise ValueError('Choose finer, standard, coarser, or custom.')
+    if supplied is not None and (type(supplied) is not int or supplied != TARGETS[level]):
+        raise ValueError(f'{level} is fixed at {TARGETS[level]} minutes. Choose custom for another duration.')
+    return TARGETS[level]
 
 
 def _sources(node: TaskNode) -> list[str]:
@@ -90,9 +92,9 @@ def adjust(root: TaskNode, task_id: str, level: str, target: int) -> dict[str, A
     before_data = {n.task_id: n.model_dump() for n in before}
     chosen = root.find_node(task_id)
     selected = {n.task_id for n in chosen.iter_leaves() if adjustable(n)} if chosen else set()
-    # A leaf coarsening request includes only adjacent siblings fitting the
-    # budget, never another parent, an executed item, or a remote project.
-    if chosen and chosen.is_leaf and level == 'coarser' and chosen.parent_id:
+    # A longer custom leaf target reuses the existing adjacent-sibling merge
+    # scope, never another parent, an executed item, or a remote project.
+    if chosen and chosen.is_leaf and chosen.parent_id and (level == 'coarser' or level == 'custom' and chosen.estimated_time * 60 < target):
         parent = root.find_node(chosen.parent_id)
         siblings = parent.children
         index = next(i for i, n in enumerate(siblings) if n.task_id == chosen.task_id)

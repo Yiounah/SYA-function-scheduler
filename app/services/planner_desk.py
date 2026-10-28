@@ -30,7 +30,7 @@ from app.models.task_tree import TaskNode, TaskStatus
 from app.models.voyage import Voyage, VoyagePhase
 from app.services.timeline import clock, minutes, scheduler_config
 from app.services.calendar import CYCLE_DEFAULTS, build_slots, calendar_changes, clock_minutes, iso_date, routine_on, routine_snapshot, routine_view, validate_routine, window, with_routine_change, work_intervals
-from app.services.granularity import adjust, adjustable, target_minutes
+from app.services.granularity import TARGETS, adjust, adjustable, target_minutes
 
 MIN_LEAF_HOURS = 1 / 60
 MAX_LEAF_HOURS = 24
@@ -547,7 +547,7 @@ async def commit_draft(container: AppContainer, desk: PlannerDesk, draft_id: str
             # confirmation; a second config request could race a newer plan.
             desk.overrides = copy.deepcopy(desk.overrides)
             day = datetime.now(ZoneInfo(str(desk.overrides.get("timezone") or "Asia/Shanghai"))).date().isoformat()
-            level = {"finer": "fine", "standard": "steady", "coarser": "wide"}[draft["level"]]
+            level = {"finer": "fine", "standard": "steady", "coarser": "wide", "custom": "custom"}[draft["level"]]
             desk.overrides["todayGrain"] = {"date": day, "level": level, "targetMinutes": draft["targetMinutes"]}
             focusflow = desk.overrides.setdefault("focusflow", {})
             focusflow.setdefault("dayGrain", {})[day] = level
@@ -578,6 +578,10 @@ async def commit_draft(container: AppContainer, desk: PlannerDesk, draft_id: str
 async def preview_granularity(container: AppContainer, desk: PlannerDesk, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
     task_id = str(body.get("taskId") or "")
     level = {"fine": "finer", "coarse": "coarser"}.get(str(body.get("level")), str(body.get("level") or "finer"))
+    # Older renderers combined a preset label with an explicit duration. Keep
+    # accepting those calls, but report and save their actual custom choice.
+    if level in TARGETS and body.get('targetMinutes') is not None and body['targetMinutes'] != TARGETS[level]:
+        level = 'custom'
     try:
         target_duration = target_minutes(level, body.get('targetMinutes'))
     except ValueError as exc:

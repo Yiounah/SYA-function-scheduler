@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { cp, mkdtemp, mkdir, readFile, writeFile, access, realpath } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, writeFile, access, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,7 +54,7 @@ const checks = [];
 const pageErrors = [];
 const launchedProcesses = new Map();
 const buildHashes = {};
-for (const name of ['desktop/main.cjs', 'app/static/index.html', 'app/static/app.js', 'app/static/styles.css']) {
+for (const name of ['desktop/main.cjs', 'app/static/index.html', 'app/static/app.js', 'app/static/styles.css', 'app/static/shared/sya-calendar.js', 'app/static/shared/sya-calendar.css', 'app/static/shared/source-manifest.json']) {
   const source = await readFile(join(repository, name));
   assert.deepEqual(await readFile(join(isolated, name)), source);
   buildHashes[name] = createHash('sha256').update(source).digest('hex');
@@ -63,6 +63,9 @@ let versions;
 let app;
 let page;
 let baseURL;
+let postponedTaskId;
+let postponedDate;
+let postponedTitle;
 
 function fixtureTree(goal) {
   const prefix = `fixture-${++sequence}`;
@@ -127,6 +130,13 @@ async function launch() {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 1020));
   page.setDefaultTimeout(15_000);
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  // Suggestions may arrive after a background refresh. Dismiss through the
+  // real UI and await its config write before the next test action/preview.
+  await page.addLocatorHandler(page.locator('#grain-suggest-modal.open'),async()=>{
+    const saved=page.waitForResponse(response=>response.url().endsWith('/api/scheduler/config')&&response.request().method()==='PUT');
+    await page.locator('#grain-suggest-keep').click();
+    assert.equal((await saved).status(),200);
+  });
   await page.waitForURL(/http:\/\/127\.0\.0\.1:\d+\//);
   baseURL = page.url().replace(/\/$/, '');
   rememberDescendants(app.process().pid);
@@ -187,7 +197,13 @@ async function moveNode(id, direction) {
   assert.equal((await result.json()).ok, true);
 }
 async function closeSuggestions() {
-  for (const id of ['focus-keep', 'grain-suggest-keep']) if (await page.locator(`#${id}`).isVisible()) await page.locator(`#${id}`).click();
+  if (await page.locator('#focus-keep').isVisible()) await page.locator('#focus-keep').click();
+}
+const calendar = () => page.locator('#sya-action-calendar');
+async function dayView() {
+  await closeSuggestions();
+  await page.locator('[data-nav="day"]:visible').first().click();
+  await expect(calendar().getByRole('heading', {name:'每日行动日历'})).toBeVisible();
 }
 async function openPlan(goal, source = 'model') {
   await closeSuggestions();
@@ -213,7 +229,7 @@ async function screenshot(name) {
 
 try {
   await launch();
-  for (const asset of ['app.js', 'styles.css']) {
+  for (const asset of ['app.js', 'styles.css', 'shared/sya-calendar.js', 'shared/sya-calendar.css']) {
     const response = await fetch(`${baseURL}/static/${asset}`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), asset.endsWith('.js') ? /javascript/ : /css/);
@@ -275,6 +291,7 @@ try {
   await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
   await page.reload();
   await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
+  await closeSuggestions();
   await expandNode(taskId);
   await record('Stage and subtask disclosure supports keyboard control and survives refresh independently');
 
@@ -330,8 +347,34 @@ try {
   await closeSuggestions();
   await page.locator('#open-day-grain').click();
   await page.locator('#grain-target').selectOption(current.tree.task_id);
+  for (const [choice, level, minutes] of [['fine','finer',25],['steady','standard',45],['wide','coarser',90]]) {
+    // A retained custom value must never override a subsequently selected preset.
+    await page.locator('#grain-target-minutes').fill('17');
+    await expect(page.locator('input[name="grain-mode"][value="custom"]')).toBeChecked();
+    await page.locator(`input[name="grain-mode"][value="${choice}"]`).check();
+    await expect(page.locator('#grain-choices input:checked')).toHaveCount(1);
+    const responsePromise=page.waitForResponse(response=>response.url().endsWith('/api/scheduler/granularity/preview')&&response.request().method()==='POST');
+    await page.locator('#grain-apply').click();
+    const response=await responsePromise;
+    const payload=response.request().postDataJSON();
+    assert.equal(payload.level,level);
+    assert.equal(Object.hasOwn(payload,'targetMinutes'),false,'preset requests cannot carry a custom override');
+    const preview=(await response.json()).data;
+    assert.equal(preview.changeSummary.targetMinutes,minutes);
+    await expectDraft();
+    await page.locator('#draft-cancel').click();
+    await expect(page.locator(`input[name="grain-mode"][value="${choice}"]`)).toBeChecked();
+  }
+  await page.locator('#grain-target-minutes').fill('121');
+  await expect(page.locator('#grain-apply')).toBeDisabled();
+  await page.locator('input[name="grain-mode"][value="fine"]').check();
+  await expect(page.locator('#grain-apply')).toBeEnabled();
+  await record('25/45/90-minute presets are mutually exclusive and never send custom target overrides');
   await page.locator('[data-grain="fine"]').click();
   await page.locator('#grain-target-minutes').fill('20');
+  await expect(page.locator('input[name="grain-mode"][value="custom"]')).toBeChecked();
+  await expect(page.locator('#grain-choices input:checked')).toHaveCount(1);
+  await expect(page.locator('input[name="grain-mode"][value="fine"]')).not.toBeChecked();
   await screenshot('03-granularity-controls');
   const beforeGrain = (await projects())[0].tree;
   await page.locator('#grain-apply').click();
@@ -381,14 +424,14 @@ try {
   await commit();
   await record('A preview waits for delayed disclosure persistence and confirms without a self-inflicted stale-draft error');
   await expect.poll(async () => leaves((await projects())[0].tree).length).toBeGreaterThan(4);
-  await expect(page.locator('#open-day-grain')).toContainText('更细');
+  await expect(page.locator('#open-day-grain')).toContainText('自定义');
   const refined = (await projects())[0].tree;
   assert.deepEqual(leaves(refined).find((node) => node.task_id === first), leaves(beforeGrain).find((node) => node.task_id === first));
   assert.ok(leaves(refined).filter((node) => node.status === 'PENDING').every((node) => Math.round(node.estimated_time * 60) <= 20));
   assert.equal(leaves(refined).reduce((sum, node) => sum + Math.round(node.estimated_time * 60), 0), 240);
   const depths = (node, depth = 0) => node.children?.length ? node.children.flatMap((child) => depths(child, depth + 1)) : [depth];
   assert.deepEqual([...new Set(depths(refined))], [3]);
-  await record('Finer draft cancels safely, confirms real leaves, and preserves completed nodes and four levels');
+  await record('Custom finer draft cancels safely, confirms real leaves, and preserves completed nodes and four levels');
 
   await closeSuggestions();
   await page.locator('#open-day-grain').click();
@@ -410,7 +453,7 @@ try {
   await page.locator('#draft-cancel').click();
   await page.locator('#grain-cancel').click();
   assert.deepEqual((await projects())[0].tree, refined);
-  await record('20-minute target is enforced; repeated fine preview is a no-op; 60-minute coarser preview cancels safely');
+  await record('Custom 20-minute target is enforced; repeated preview is a no-op; custom 60-minute merge preview cancels safely');
 
   await closeSuggestions();
   await page.locator('#open-schedule').click();
@@ -446,10 +489,69 @@ try {
   assert.ok(routineTimeline.breaks.filter((slot) => slot.kind === 'break').some((slot) => minutesOf(slot) === 5));
   assert.ok(routineTimeline.breaks.some((slot) => slot.kind === 'recovery' && minutesOf(slot) === 15));
   await page.locator('.sidebar [data-nav="day"]').click();
-  await expect(page.locator('.break-item').first()).toBeVisible();
-  assert.equal(await page.locator('.break-item input').count(), 0);
+  await expect(page.getByTestId('calendar-break-block').first()).toBeVisible();
+  assert.equal(await page.getByTestId('calendar-break-block').locator('input').count(), 0);
   await screenshot('07-overview-with-breaks');
   await record('Routine preview lists affected work; cancel preserves and confirmation saves the change');
+
+  await dayView();
+  const firstBlock=calendar().getByTestId('calendar-work-block').first();
+  await expect(firstBlock.getByRole('button',{name:'开始专注',exact:true})).toBeEnabled();
+  await expect(firstBlock.getByRole('button',{name:'完成整个任务',exact:true})).toBeEnabled();
+  const originalTitle=await firstBlock.getByRole('heading',{level:3}).innerText();
+  const originalTask=(await api('/api/scheduler/tasks?projectId=all')).find(task=>task.title===originalTitle);
+  assert(originalTask,'calendar task comes from the real tasks.list DTO');
+  postponedTaskId=originalTask.id;
+  postponedTitle=originalTitle+'（延期验收）';
+  const calendarDate=await calendar().getByLabel('日历日期').inputValue();
+  postponedDate=await page.evaluate(date=>{const next=new Date(date+'T12:00:00');next.setDate(next.getDate()+2);return `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;},calendarDate);
+  const beforeEdit={tree:await savedTree(current.tree.task_id),slots:await slots()};
+  await firstBlock.getByRole('button',{name:'调整 / 延期',exact:true}).click();
+  let editor=page.getByRole('dialog',{name:'调整任务',exact:true});
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel('编辑任务内容')).toBeFocused();
+  await editor.getByLabel('编辑任务内容').fill('取消的修改');
+  await editor.getByLabel('任务安排日期').fill(postponedDate);
+  await editor.getByRole('button',{name:'取消调整',exact:true}).click();
+  await expect(editor).not.toBeVisible();
+  assert.deepEqual(await savedTree(current.tree.task_id),beforeEdit.tree);
+  assert.deepEqual(await slots(),beforeEdit.slots);
+  await firstBlock.getByRole('button',{name:'调整 / 延期',exact:true}).click();
+  editor=page.getByRole('dialog',{name:'调整任务',exact:true});
+  await editor.getByLabel('编辑任务内容').fill(postponedTitle);
+  await editor.getByLabel('任务安排日期').fill(postponedDate);
+  await editor.getByLabel('任务截止日期').fill(postponedDate);
+  if(process.platform!=='win32' && process.getuid?.()!==0) {
+    // A real disk permission failure in this isolated profile, not an API mock.
+    await chmod(data,0o500);
+    try {
+      await editor.getByRole('button',{name:'保存任务调整',exact:true}).click();
+      await expect(editor.getByRole('alert')).toBeVisible();
+      await expect(editor.getByLabel('编辑任务内容')).toHaveValue(postponedTitle);
+      await expect(editor.getByLabel('任务安排日期')).toHaveValue(postponedDate);
+      assert.deepEqual(await savedTree(current.tree.task_id),beforeEdit.tree);
+    } finally {await chmod(data,0o700);}
+    await record('A real task-save storage failure keeps the editor and entered values available for retry');
+  }
+  await editor.getByRole('button',{name:'保存任务调整',exact:true}).click();
+  await expect(editor).not.toBeVisible();
+  await expect.poll(async()=>(await api(`/api/scheduler/tasks/${postponedTaskId}`)).scheduledDate).toBe(postponedDate);
+  assert.equal((await api(`/api/scheduler/tasks/${postponedTaskId}`)).title,postponedTitle);
+  await calendar().getByLabel('日历日期').fill(postponedDate);
+  await expect(calendar().getByTestId('calendar-work-block').filter({hasText:postponedTitle})).toBeVisible();
+  await screenshot('08-action-calendar-postponed');
+  await closeSuggestions();
+  await calendar().getByRole('button',{name:'周',exact:true}).click();
+  await expect(page.locator('#board-title')).toHaveText('研究周报');
+  await expect(page.locator('#board.week-board .bar')).not.toHaveCount(0);
+  await page.locator('[data-nav="calendar"]:visible').first().click();
+  await expect(page.locator('#board-title')).toHaveText('研究月历');
+  await expect(page.locator(`[data-day="${postponedDate}"]`)).toHaveClass(/has-ms/);
+  const postponedTimeline=await api(`/api/scheduler/timeline?from=${postponedDate}&to=${postponedDate}&view=day&projectId=all`);
+  assert(postponedTimeline.events.some(event=>event.taskId===postponedTaskId&&event.startTime.startsWith(postponedDate)));
+  await record('Shared action calendar exposes Focus/Edit/Complete; visible task editor cancels safely and postponement updates the day, week and month views');
+  await dayView();
+  await calendar().getByRole('button',{name:'今天',exact:true}).click();
 
   // A model failure is a real upstream HTTP 503, not a mocked scheduler response.
   fixtureMode = 'failure';
@@ -553,12 +655,15 @@ try {
   await stop();
   await launch();
   await expect(page.locator('#entry-modal')).not.toBeVisible();
-  await expect(page.locator('#open-day-grain')).toContainText('更细 20m');
+  await expect(page.locator('#open-day-grain')).toContainText('自定义时长 20m');
   await expect.poll(async () => (await projects()).length).toBe(beforeRestart.projects.length);
   const afterRestart = await snapshot();
   assert.deepEqual(afterRestart, beforeRestart);
   assert.equal((await api('/api/scheduler/config')).focusMinutes, 25);
   assert.equal((await api('/api/scheduler/config')).todayGrain.targetMinutes, 20);
+  assert.equal((await api('/api/scheduler/config')).todayGrain.level,'custom');
+  assert.equal((await api(`/api/scheduler/tasks/${postponedTaskId}`)).scheduledDate,postponedDate);
+  assert.equal((await api(`/api/scheduler/tasks/${postponedTaskId}`)).title,postponedTitle);
   assert.ok((await api('/api/scheduler/timeline?projectId=all')).breaks.length > 0);
   await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
   await expect(page.locator('#board.task-tree-board')).toBeVisible();
@@ -571,6 +676,12 @@ try {
   assert.equal((await savedTree(current.tree.task_id)).children[0].task_id, otherStageId);
   await screenshot('07-after-restart');
   await record('True Electron exit and restart restore sibling order, project disclosure, progress, routine and stable slots');
+  await closeSuggestions();
+  await page.locator('#open-day-grain').click();
+  await expect(page.locator('input[name="grain-mode"][value="custom"]')).toBeChecked();
+  await expect(page.locator('#grain-target-minutes')).toHaveValue('20');
+  await page.locator('#grain-cancel').click();
+  await record('Custom selection, duration and postponed task date remain explicit after a true relaunch');
 
   // CAP-8 uses real status actions at the current local time, never a fake clock
   // or a seeded observation. Clear only this test's earlier observation metadata.
@@ -578,6 +689,11 @@ try {
   await page.locator('#open-schedule').click();
   const localHour = await page.evaluate(() => new Date().getHours());
   const outsideStart = localHour === 2 ? '04:00' : '02:00';
+  // Keep synthetic meal reservations away from the real observation minute;
+  // otherwise a run during dinner correctly has no feasible work suggestion.
+  const mealHour=localHour===1?'05':'01';
+  await page.locator('#schedule-modal .meal-settings summary').click();
+  for(const [id,minute] of [['lunch-start','00'],['lunch-end','10'],['dinner-start','20'],['dinner-end','30']])await page.locator(`#${id}`).fill(`${mealHour}:${minute}`);
   await page.locator('#period-start').fill(outsideStart);
   await page.locator('#hours-per-day').fill('1');
   await page.locator('#save-schedule').click();
@@ -615,7 +731,7 @@ try {
   assert.deepEqual(pageErrors, []);
   await stop();
   await record('No renderer errors and no Electron/runtime child processes remain');
-  await writeFile(join(evidence, 'result.json'), JSON.stringify({ ok: true, checks, modelFixture: true, liveModelTested: false, repository, evidence, isolated, profile, data, executablePath, versions, buildHashes, pageErrors, survivors: survivors() }, null, 2));
+  await writeFile(join(evidence, 'result.json'), JSON.stringify({ ok: true, checks, modelFixture: true, liveModelTested: false, focusHandoffTested:false, focusBoundary:'Focus action is visible and enabled here; native SYA handoff and real Focus session are covered by the host Electron suite.', repository, evidence, isolated, profile, data, executablePath, versions, buildHashes, pageErrors, survivors: survivors() }, null, 2));
   console.log(JSON.stringify({ ok: true, checks: checks.length, evidence }));
 } catch (error) {
   if (page && !page.isClosed()) await screenshot('failure').catch(() => {});
