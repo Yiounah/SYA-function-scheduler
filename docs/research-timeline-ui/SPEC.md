@@ -1,7 +1,7 @@
 # SPEC — 任务规划时间轴
 
 status: accepted-for-implementation  
-date: 2026-10-26
+date: 2026-10-28
 source: SYA-UI BMAD (`bmad-spec` kernel) · user design handoff · SCH-001 / SCH-002 / SCH-003  
 repo: `SYA-function-scheduler` (SYA-UI submodule `function/scheduler`)
 
@@ -28,6 +28,15 @@ repo: `SYA-function-scheduler` (SYA-UI submodule `function/scheduler`)
 作息新增专注、短休息、周期恢复及生效日期。工作、短休息、恢复分别标识；休息占用实际时间但不充当任务。生效前安排和已执行记录受到保护，预览展示前后节拍、受影响任务及截止溢出。日周月继续只读取服务器结果，旧工作事件字段保持兼容，休息通过独立 `breaks` 返回。
 
 持续专注的评估说明见 `docs/scheduler-guide.md`。本轮没有实现跨模块专注评分器；完成率仅计 DONE，跳过和无样本不能成为成功或持续专注的证据。已有 `procrastination_index` 仅表示有记录的时长超支，不能作为心理状态判断。
+
+## 2026-10-28 任务树融合
+
+本次用户设计更新 CAP-2/CAP-3 的呈现：保留顶部课题概览，阶段横向排列，子任务和清单直接纵向嵌套在各阶段下；取代原来的子任务列表/详情双栏。任务树是默认视图，日周月日历保留为辅助视图。
+
+- 阶段与子任务独立折叠，全部展开/收起；按课题保存偏好，重启恢复。搜索临时展开匹配路径，清空搜索恢复原偏好。
+- 阶段左右移动、子任务/清单上下移动，只接受完整同级节点顺序；不支持跨父节点拖动。排序不能切换活动课题或丢失进度，未执行排期跟随新顺序。
+- 原有清单状态、修改规划、粒度、作息和日历操作继续可用。日历点击返回树中的路径，键盘操作及窄屏横向阶段滚动可用。
+- SYA-UI 高级规划器复用本界面并由主进程提供与 FunctionHost 相同的持久化目录；运行端口及目录不由静态 UI 管理。
 
 ## Constraints
 

@@ -13,7 +13,8 @@
         <div>
           <p class="nav-label" data-i18n="nav">导航</p>
           <div class="nav-list">
-            <button class="nav-item active" data-nav="day" type="button" data-i18n="day">日</button>
+            <button class="nav-item active" data-nav="tree" type="button" data-i18n="taskTree">任务树</button>
+            <button class="nav-item" data-nav="day" type="button" data-i18n="day">日</button>
             <button class="nav-item" data-nav="timeline" type="button" data-i18n="timeline">周</button>
             <button class="nav-item" data-nav="calendar" type="button" data-i18n="calendar">月</button>
           </div>
@@ -61,7 +62,7 @@
           <section class="card" id="timeline-card">
             <div class="card-head">
               <div>
-                <strong id="board-title">研究周报</strong>
+                <strong id="board-title" data-i18n="taskTree">任务树</strong>
                 <div class="legend">
                   <span><i class="dot-done"></i><span data-i18n="legendDone">已完成</span></span>
                   <span><i class="dot-now"></i><span data-i18n="legendNow">进行中</span></span>
@@ -70,30 +71,24 @@
               </div>
               <div class="pager">
                 <div class="view-switch" role="group" data-i18n-aria="nav">
-                  <button class="active" data-nav="day" type="button" data-i18n="day">日</button>
+                  <button class="active" data-nav="tree" type="button" data-i18n="taskTree">任务树</button>
+                  <button data-nav="day" type="button" data-i18n="day">日</button>
                   <button data-nav="timeline" type="button" data-i18n="timeline">周</button>
                   <button data-nav="calendar" type="button" data-i18n="calendar">月</button>
                 </div>
+                <span id="calendar-pager" class="calendar-pager">
                 <button id="cal-prev" type="button" aria-label="上一页">‹</button>
                 <div class="meta" id="range-label"></div>
                 <button id="cal-today" type="button" data-i18n="today">今天</button>
                 <button id="cal-next" type="button" aria-label="下一页">›</button>
+                </span>
+                <span id="tree-controls" class="tree-controls"><button id="tree-expand-all" type="button" data-i18n="expandAll">全部展开</button><button id="tree-collapse-all" type="button" data-i18n="collapseAll">全部收起</button></span>
               </div>
             </div>
             <p class="hint calendar-note" id="calendar-note"></p>
             <div id="board"></div>
           </section>
 
-          <section class="card subtask-card">
-            <div class="card-head">
-              <strong id="subtask-heading" data-i18n="subtasks">子任务</strong>
-              <span class="meta" id="subtask-count"></span>
-            </div>
-            <div class="subtask-layout">
-              <div class="subtask-list" id="subtask-list"></div>
-              <div class="detail" id="subtask-detail"></div>
-            </div>
-          </section>
         </main>
       </section>
     </div>

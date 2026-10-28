@@ -58,7 +58,7 @@ class FocusFlowAppTests(unittest.TestCase):
         self.assertIn('data-i18n="day">日<', response.text)
         self.assertIn('data-i18n="timeline">周<', response.text)
         self.assertIn('data-i18n="calendar">月<', response.text)
-        self.assertIn("研究周报", response.text)
+        self.assertIn("任务树", response.text)
         self.assertIn('data-nav="day"', response.text)
         self.assertIn("长程目标", response.text)
         self.assertIn('src="/static/app.js"', response.text)

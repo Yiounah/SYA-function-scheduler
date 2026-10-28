@@ -1,4 +1,14 @@
-# Delivery evidence — 2026-10-26
+# Delivery evidence
+
+## 2026-10-28 可折叠任务树专项验收
+
+- Python 单元与 HTTP 回归共 68 项通过；新用例覆盖阶段/子任务/清单同级排序、非法请求不写入、活动课题不变、落盘失败回滚、重启、进度及已执行时间块保留。测试显式禁用真实模型密钥。
+- `scripts/test-planner-electron.mjs` 真实 Electron 42.3.3 最终串行验收 21/21 通过：课题头卡、横向阶段、纵向树、键盘折叠、刷新与重启恢复、三层排序、搜索临时展开、窄屏、细粒度、作息及旧草案拒绝。延迟真实折叠配置请求后立即预览，验证预览等待写入并可成功提交。
+- 最终证据在忽略目录 `_bmad-output/planner-electron/2026-10-28T08-37-10-404Z/result.json`，包括源码哈希、版本、隔离 profile/data、截图和清理结果。`pageErrors=[]`，`survivors=[]`；两次生命周期均使用真实 `app.quit`，未保留测试进程。
+- SYA-UI 编译后的主应用专项通过真实 preload/IPC/FunctionHost 和 Python owner，验证宿主建计划 → 高级规划器读取 → 勾选完成/排序 → 宿主回读 → 真退出/重启；应用内只读 API 页面展示完整同级排序合同。证据为主仓库 `_bmad-output/scheduler-task-tree/report.json`，2026-10-28T08:34:15Z 至 08:34:33Z。
+- 原生 UI 套件最终串行执行，避免两个 Electron 自动化窗口互抢输入。独立测试在外部模型 HTTP 边界使用固定回复；宿主专项仅用手动合成树，不访问模型、个人计划或 `.env`。本记录是源码 App 验收，不代表已发布签名安装包。
+
+交互参考 [WAI-ARIA Disclosure Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/)，使用原生按钮与 CSS grid，没有新增树控件依赖。
 
 ## 2026-10-26 Scheduler 粒度与作息专项最终验收
 

@@ -496,7 +496,8 @@
     "/api/scheduler/tasks/reorder": {
       "post": {
         "operationId": "tasks.reorder",
-        "summary": "Reorder tasks",
+        "summary": "Reorder sibling tasks",
+        "description": "Provide all children of one parent exactly once. Supports stages, subtasks and checklist items without changing hierarchy, task progress or the active project. Pending slots follow the new order; executed slots remain protected.",
         "requestBody": {
           "required": true,
           "content": {
@@ -509,7 +510,7 @@
         },
         "responses": {
           "200": {
-            "description": "Reorder result",
+            "description": "Sibling order persisted; data is null. Read projects or timeline to refresh the view.",
             "content": {
               "application/json": {
                 "schema": {
@@ -517,6 +518,15 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Duplicate, missing, unknown, cross-parent, cross-level or cross-project task IDs. No order is changed."
+          },
+          "409": {
+            "description": "Another scheduler process saved a newer revision. Reload before retrying."
+          },
+          "503": {
+            "description": "Storage unavailable. The saved order and revision are unchanged."
           }
         }
       }
@@ -1300,6 +1310,8 @@
         "properties": {
           "taskIds": {
             "type": "array",
+            "description": "Every child ID of one parent, exactly once, in the desired order.",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             },

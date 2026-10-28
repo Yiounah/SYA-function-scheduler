@@ -475,7 +475,7 @@ def _walk_depth(root: TaskNode, depth: int = 0):
         yield from _walk_depth(child, depth + 1)
 
 
-async def _save_replacement(container: AppContainer, desk: PlannerDesk, projects: list[PlannedProject]) -> bool:
+async def _save_replacement(container: AppContainer, desk: PlannerDesk, projects: list[PlannedProject], *, preserve_active: bool = False) -> bool:
     """Write durable state before publishing it to readers; a failed write is inert."""
     desk.last_save_conflict = False
     try:
@@ -483,7 +483,7 @@ async def _save_replacement(container: AppContainer, desk: PlannerDesk, projects
     except OSError as exc:
         desk.last_save_conflict = isinstance(exc, ConcurrentPlannerWrite)
         return False
-    await container.memory_store.restore_projects(projects)
+    await container.memory_store.restore_projects(projects, preserve_active=preserve_active)
     return True
 
 
@@ -671,7 +671,7 @@ async def update_config(container: AppContainer, desk: PlannerDesk, body: dict[s
         desk.overrides = config
         desk.revision += 1
         projects = await container.memory_store.list_projects()
-        if not await _save_replacement(container, desk, projects):
+        if not await _save_replacement(container, desk, projects, preserve_active=True):
             desk.overrides = previous
             desk.revision -= 1
             return failure(409 if desk.last_save_conflict else 503, "STALE_DRAFT" if desk.last_save_conflict else "STORAGE_UNAVAILABLE", "Configuration could not be saved. Reload before retrying.")

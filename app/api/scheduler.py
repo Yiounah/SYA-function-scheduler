@@ -22,6 +22,7 @@ from app.api.deps import get_container
 from app.api.schemas import InitTaskRequest, UpdateTaskStatusRequest
 from app.models.task_tree import TaskNode, TaskStatus
 from app.services.planner_desk import (
+    ConcurrentPlannerWrite,
     commit_draft,
     config_view,
     confirm_tree,
@@ -89,11 +90,11 @@ class DecomposeRequest(BaseModel):
 
 
 class ReorderTasksRequest(BaseModel):
-    """Task reorder payload used by the SYA function client."""
+    """Complete sibling order used by the SYA function client."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    task_ids: list[str] = Field(alias="taskIds", min_length=1)
+    task_ids: list[str] = Field(alias="taskIds", min_length=1, description="Every child of one parent, exactly once, in the desired order.")
 
 
 def function_ok(data: Any) -> FunctionResponse:
@@ -277,21 +278,34 @@ async def scheduler_reorder_tasks(
     order = {task_id: index for index, task_id in enumerate(body.task_ids)}
     if len(order) != len(body.task_ids):
         raise HTTPException(status_code=422, detail="Task order cannot contain duplicate IDs")
-    projects = await container.memory_store.list_projects()
-    owner = next((p for p in projects if all(p.tree.find_node(task_id) for task_id in body.task_ids)), None)
-    if owner is None:
-        raise HTTPException(status_code=422, detail="Reordered tasks must belong to the same existing project")
-    if owner.tree.task_id in order:
-        raise HTTPException(status_code=422, detail="A project root cannot be reordered among its tasks")
+    async with container.planner_desk.lock:
+        projects = await container.memory_store.list_projects()
+        owner = next((p for p in projects if all(p.tree.find_node(task_id) for task_id in body.task_ids)), None)
+        if owner is None:
+            raise HTTPException(status_code=422, detail="Reordered tasks must belong to the same existing project")
+        parent = next((node for node in owner.tree.iter_nodes() if {child.task_id for child in node.children} == set(order)), None)
+        if parent is None:
+            raise HTTPException(status_code=422, detail="Task order must contain every child of one parent exactly once")
+        if [child.task_id for child in parent.children] == body.task_ids:
+            return function_ok(None)
 
-    def mutator(root: TaskNode) -> None:
-        if root.task_id != owner.tree.task_id:
-            raise KeyError(owner.tree.task_id)
-        for node in root.iter_nodes():
-            node.children.sort(key=lambda child: order.get(child.task_id, len(order)))
+        def mutator(root: TaskNode) -> None:
+            if root.task_id != owner.tree.task_id:
+                raise KeyError(owner.tree.task_id)
+            current = root.find_node(parent.task_id)
+            if current is None or {child.task_id for child in current.children} != set(order):
+                raise HTTPException(status_code=422, detail="Task siblings changed; reload before reordering")
+            current.children.sort(key=lambda child: order[child.task_id])
 
-    await container.memory_store.mutate_tree(mutator)
-    await persist(container, container.planner_desk)
+        # The store callback advances revision and persists the tree together
+        # with rebuilt pending slots; executed slots and the active project stay put.
+        try:
+            await container.memory_store.mutate_tree(mutator, activate=False)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=409 if isinstance(exc, ConcurrentPlannerWrite) else 503,
+                detail="Task order could not be saved; reload before retrying",
+            ) from exc
     return function_ok(None)
 
 

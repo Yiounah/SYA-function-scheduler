@@ -3,6 +3,26 @@
 // Same-origin desktop UI. Persistence and scheduling are owned by the service.
 const COPY = {
   "zh": {
+    "taskTree": "任务树",
+    "treeHint": "横向查看阶段，展开子任务和清单；同级顺序可以调整并自动保存。",
+    "expandAll": "全部展开",
+    "collapseAll": "全部收起",
+    "treeStage": "阶段 {number}",
+    "treeTask": "子任务",
+    "treeChecklist": "清单",
+    "treeProgress": "{done}/{total} 项已完成",
+    "treeTaskCount": "{count} 个子任务",
+    "treeMinutes": "{minutes} 分钟",
+    "moveLeft": "向左移动 {title}",
+    "moveRight": "向右移动 {title}",
+    "moveUp": "上移 {title}",
+    "moveDown": "下移 {title}",
+    "orderSaved": "顺序已保存",
+    "orderFailed": "顺序未保存，请刷新后重试。",
+    "emptyTree": "新建规划后，在这里查看阶段、子任务和清单。",
+    "treeOrder": "同级排序",
+    "treeSaveFailed": "展开状态尚未保存，下次展开或收起时会重试。",
+
     "brand": "任务规划",
     "newPlan": "新建规划",
     "nav": "导航",
@@ -218,6 +238,26 @@ const COPY = {
     "affectedDetails": "查看受影响任务"
   },
   "en": {
+    "taskTree": "Task tree",
+    "treeHint": "Explore stages from left to right. Expand tasks and checklists; sibling order saves automatically.",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "treeStage": "Stage {number}",
+    "treeTask": "Task",
+    "treeChecklist": "Checklist",
+    "treeProgress": "{done}/{total} items completed",
+    "treeTaskCount": "{count} tasks",
+    "treeMinutes": "{minutes} min",
+    "moveLeft": "Move {title} left",
+    "moveRight": "Move {title} right",
+    "moveUp": "Move {title} up",
+    "moveDown": "Move {title} down",
+    "orderSaved": "Order saved",
+    "orderFailed": "Order was not saved. Refresh and retry.",
+    "emptyTree": "Create a plan to see its stages, tasks and checklists here.",
+    "treeOrder": "Reorder siblings",
+    "treeSaveFailed": "Expansion preferences were not saved. The next expand or collapse will retry.",
+
     "brand": "Research Planner",
     "newPlan": "New plan",
     "nav": "Navigate",
@@ -445,7 +485,14 @@ const state = {
   tree: null,
   ws: null,
   inflight: false,
-  nav: "day",
+  nav: "tree",
+  treeDisclosure: loadTreeDisclosure(),
+  treeDisclosureDirty: false,
+  treeDisclosureSaving: false,
+  treeDisclosurePromise: null,
+  searchDisclosure: {},
+  reordering: false,
+  boardFocusId: null,
   focus: null,
   selectedMilestoneId: null,
   selectedSubtaskId: null,
@@ -739,6 +786,10 @@ async function pullSharedDesk() {
   try {
     const config = await requestJson("/api/scheduler/config");
     const desk = config.focusflow && typeof config.focusflow === "object" ? config.focusflow : {};
+    if (!state.treeDisclosureDirty && !state.treeDisclosureSaving && desk.treeDisclosure && typeof desk.treeDisclosure === "object" && !Array.isArray(desk.treeDisclosure)) {
+      state.treeDisclosure = desk.treeDisclosure;
+      cacheTreeDisclosure();
+    }
     state.rest = config.rest || "";
     state.appliedGrainTarget = config.todayGrain?.date === ymd(startOfDay(new Date())) ? config.todayGrain.targetMinutes : null;
     for (const [key, [, fallback]] of Object.entries(CYCLE_FIELDS)) state.cycle[key] = Number.isFinite(config[key]) ? config[key] : fallback;
@@ -936,31 +987,14 @@ function stageSpan(plan, stageId) {
   };
 }
 
-function subtaskEnd(plan, subtaskId) {
-  const items = plan.filter((item) => item.subtask.task_id === subtaskId);
-  if (!items.length) return null;
-  return items.reduce((max, item) => (item.end > max ? item.end : max), items[0].end);
-}
-
 function subtasksOf(milestone) {
   if (!milestone) return [];
   return milestone.children && milestone.children.length ? milestone.children : [milestone];
 }
 
-function checklistOf(subtask) {
-  if (!subtask) return [];
-  return subtask.children && subtask.children.length ? subtask.children : [subtask];
-}
-
 function selectedMilestone() {
   const items = milestones();
   return items.find((node) => node.task_id === state.selectedMilestoneId) || items[0] || null;
-}
-
-function selectedSubtask() {
-  const milestone = selectedMilestone();
-  const tasks = subtasksOf(milestone).filter(matchesSearch);
-  return tasks.find((node) => node.task_id === state.selectedSubtaskId) || tasks[0] || null;
 }
 
 function matchesSearch(node) {
@@ -1160,7 +1194,190 @@ function renderMonth(plan) {
   board.innerHTML = weekdayLabels().map((name) => `<div class="dow">${escapeHtml(name)}</div>`).join("") + cells.join("");
 }
 
+function loadTreeDisclosure() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem("focusflow.treeDisclosure") || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch { return {}; }
+}
+
+function disclosureForProject() {
+  const value = state.treeDisclosure[state.selectedProjectId];
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function treeExpanded(node) {
+  const preferences = state.search.trim() ? state.searchDisclosure : disclosureForProject();
+  return preferences[node.task_id] !== false;
+}
+
+function setTreeExpanded(ids, expanded) {
+  if (!state.selectedProjectId) return;
+  if (state.search.trim()) {
+    state.searchDisclosure = { ...state.searchDisclosure, ...Object.fromEntries(ids.map(id => [id, expanded])) };
+  } else {
+    const preferences = { ...disclosureForProject(), ...Object.fromEntries(ids.map(id => [id, expanded])) };
+    state.treeDisclosure = { ...state.treeDisclosure, [state.selectedProjectId]: preferences };
+    cacheTreeDisclosure();
+    state.treeDisclosureDirty = true;
+    void saveTreeDisclosure();
+  }
+}
+
+function cacheTreeDisclosure() {
+  try { window.localStorage.setItem("focusflow.treeDisclosure", JSON.stringify(state.treeDisclosure)); }
+  catch { /* The service remains the durable source when browser storage is unavailable. */ }
+}
+
+function saveTreeDisclosure() {
+  if (state.treeDisclosurePromise) return state.treeDisclosurePromise;
+  if (!state.treeDisclosureDirty) return Promise.resolve();
+  state.treeDisclosureSaving = true;
+  state.treeDisclosurePromise = (async () => {
+    try {
+      while (state.treeDisclosureDirty) {
+        state.treeDisclosureDirty = false;
+        // This metadata-only patch leaves routine and other focusflow preferences intact.
+        await requestJson("/api/scheduler/config", { method: "PUT", body: JSON.stringify({ focusflow: { treeDisclosure: state.treeDisclosure } }) });
+      }
+    } catch {
+      state.treeDisclosureDirty = true;
+      showToast(t("treeSaveFailed"));
+    } finally {
+      state.treeDisclosureSaving = false;
+      state.treeDisclosurePromise = null;
+    }
+  })();
+  return state.treeDisclosurePromise;
+}
+
+function treeId(kind, taskId) {
+  return `tree-${kind}-${encodeURIComponent(taskId)}`;
+}
+
+function matchesTree(node) {
+  return matchesSearch(node) || (node.children || []).some(matchesTree);
+}
+
+function treeProgress(node) {
+  const leaves = collectLeaves(node);
+  return t("treeProgress", { done: leaves.filter(leaf => leaf.status === "DONE").length, total: leaves.length });
+}
+
+function reorderButtons(node, siblings, horizontal = false) {
+  const index = siblings.findIndex(item => item.task_id === node.task_id);
+  const busy = state.reordering || state.pendingStatus.size > 0;
+  const title = taskTitle(node);
+  return `<span class="tree-order" role="group" aria-label="${escapeHtml(t("treeOrder"))}">${[-1, 1].map(direction => {
+    const label = t(horizontal ? (direction < 0 ? "moveLeft" : "moveRight") : (direction < 0 ? "moveUp" : "moveDown"), { title });
+    const disabled = busy || (direction < 0 ? index === 0 : index === siblings.length - 1);
+    return `<button type="button" id="${treeId(direction < 0 ? "previous" : "next", node.task_id)}" data-tree-move="${escapeHtml(node.task_id)}" data-direction="${direction}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" ${disabled ? "disabled" : ""}>${horizontal ? (direction < 0 ? "←" : "→") : (direction < 0 ? "↑" : "↓")}</button>`;
+  }).join("")}</span>`;
+}
+
+function treeLeaf(node, siblings) {
+  const minutes = Math.round(Number(node.estimated_time || 0) * 60);
+  return `<li class="tree-leaf ${nodeKind(node)}" data-tree-leaf-id="${escapeHtml(node.task_id)}">
+    <div class="tree-leaf-label"><span>${escapeHtml(t("treeChecklist"))}</span>${reorderButtons(node, siblings)}</div>
+    ${checklistRows(node)}
+    <div class="tree-leaf-meta">${escapeHtml(t("treeMinutes", { minutes }))}${node.deadline ? ` · ${escapeHtml(t("due", { date: node.deadline }))}` : ""}</div>
+  </li>`;
+}
+
+function treeTask(node, siblings, inheritedMatch) {
+  const expanded = treeExpanded(node);
+  const children = node.children || [];
+  const showAll = inheritedMatch || matchesSearch(node);
+  const visible = children.filter(child => showAll || matchesTree(child));
+  return `<section class="tree-task ${nodeKind(node)}" data-tree-task-id="${escapeHtml(node.task_id)}">
+    <div class="tree-task-head">
+      <button class="tree-toggle" type="button" id="${treeId("toggle", node.task_id)}" data-tree-toggle="${escapeHtml(node.task_id)}" aria-expanded="${expanded}" aria-controls="${treeId("children", node.task_id)}">
+        <span class="tree-chevron" aria-hidden="true">›</span><span><small>${escapeHtml(t("treeTask"))}</small><strong>${escapeHtml(taskTitle(node))}</strong><span class="tree-count">${escapeHtml(treeProgress(node))}</span></span>
+      </button>${reorderButtons(node, siblings)}
+    </div>
+    <div id="${treeId("children", node.task_id)}" ${expanded ? "" : "hidden"}>
+      ${taskDescription(node) ? `<p class="tree-description">${escapeHtml(taskDescription(node))}</p>` : ""}
+      <ul class="tree-checklist">${visible.map(child => treeLeaf(child, children)).join("")}</ul>
+    </div>
+  </section>`;
+}
+
+function renderTaskTree() {
+  const board = document.getElementById("board");
+  board.className = "task-tree-board";
+  const stages = state.tree?.children || [];
+  const projectMatches = state.tree && matchesSearch(state.tree);
+  const visible = stages.filter(stage => projectMatches || matchesTree(stage));
+  board.innerHTML = visible.length ? visible.map(stage => {
+    const expanded = treeExpanded(stage);
+    const children = stage.children || [];
+    const showAll = projectMatches || matchesSearch(stage);
+    const tasks = children.filter(child => showAll || matchesTree(child));
+    const number = String(stages.indexOf(stage) + 1).padStart(2, "0");
+    return `<article class="tree-stage ${nodeKind(stage)}" data-tree-stage-id="${escapeHtml(stage.task_id)}">
+      <div class="tree-stage-header">
+        <div class="tree-stage-kicker"><span>${escapeHtml(t("treeStage", { number }))}</span>${reorderButtons(stage, stages, true)}</div>
+        <button class="tree-toggle" type="button" id="${treeId("toggle", stage.task_id)}" data-tree-toggle="${escapeHtml(stage.task_id)}" aria-expanded="${expanded}" aria-controls="${treeId("children", stage.task_id)}">
+          <span class="tree-chevron" aria-hidden="true">›</span><span><strong>${escapeHtml(taskTitle(stage))}</strong><span class="tree-count">${escapeHtml(t("treeTaskCount", { count: children.length }))} · ${escapeHtml(treeProgress(stage))}</span></span>
+        </button>
+      </div>
+      <div class="tree-stage-children" id="${treeId("children", stage.task_id)}" ${expanded ? "" : "hidden"}>
+        ${tasks.map(node => treeTask(node, children, showAll)).join("")}
+      </div>
+    </article>`;
+  }).join("") : `<div class="empty tree-empty">${escapeHtml(t(state.tree ? "noMatch" : "emptyTree"))}</div>`;
+  board.setAttribute("aria-busy", String(state.reordering));
+}
+
+async function moveTreeNode(taskId, direction) {
+  if (state.reordering || state.pendingStatus.size || ![-1, 1].includes(direction)) return;
+  const parent = walkNodes(state.tree).find(node => node.children?.some(child => child.task_id === taskId));
+  if (!parent) return;
+  const taskIds = parent.children.map(node => node.task_id);
+  const index = taskIds.indexOf(taskId);
+  const target = index + direction;
+  if (target < 0 || target >= taskIds.length) return;
+  [taskIds[index], taskIds[target]] = [taskIds[target], taskIds[index]];
+  state.reordering = true;
+  renderAll();
+  try {
+    await saveTreeDisclosure();
+    await requestJson("/api/scheduler/tasks/reorder", { method: "POST", body: JSON.stringify({ taskIds }) });
+    await fetchTree(true);
+    showToast(t("orderSaved"));
+  } catch {
+    await fetchTree(false);
+    showToast(t("orderFailed"));
+  } finally {
+    state.reordering = false;
+    renderAll();
+  }
+}
+
 function renderBoard() {
+  const board = document.getElementById("board");
+  const scrollLeft = board.scrollLeft;
+  const content = document.querySelector(".content");
+  const scrollTop = content.scrollTop;
+  const treeView = state.nav === "tree";
+  document.getElementById("calendar-pager").hidden = treeView;
+  document.getElementById("tree-controls").hidden = !treeView;
+  if (treeView) {
+    document.getElementById("board-title").textContent = t("taskTree");
+    document.getElementById("calendar-note").textContent = t("treeHint");
+    renderTaskTree();
+    board.scrollLeft = scrollLeft;
+    content.scrollTop = scrollTop;
+    if (state.boardFocusId) {
+      let target = document.getElementById(state.boardFocusId);
+      if (target?.disabled && target.dataset.treeMove) {
+        target = document.getElementById(treeId("toggle", target.dataset.treeMove)) || document.getElementById(treeId("check", target.dataset.treeMove));
+      }
+      target?.focus({ preventScroll: true });
+    }
+    return;
+  }
+  board.removeAttribute("aria-busy");
   const plan = state.plan || [];
   const focus = state.focus;
   const rangeStart = state.nav === "timeline" ? mondayOf(focus) : state.nav === "calendar" ? new Date(focus.getFullYear(), focus.getMonth(), 1) : focus;
@@ -1184,44 +1401,6 @@ function renderBoard() {
   }
 }
 
-function renderSubtasks() {
-  const milestone = selectedMilestone();
-  const tasks = subtasksOf(milestone).filter(matchesSearch);
-  const selected = selectedSubtask();
-  const leaves = collectLeaves(milestone);
-  const done = leaves.filter((leaf) => leaf.status === "DONE").length;
-  document.getElementById("subtask-heading").textContent = milestone ? t("subtaskHeading", { title: taskTitle(milestone) }) : t("subtasks");
-  document.getElementById("subtask-count").textContent = milestone ? t("subtaskCount", { total: leaves.length, done }) : "";
-  document.getElementById("subtask-list").innerHTML = tasks.length
-    ? tasks.map((node) => {
-        const kind = nodeKind(node);
-        const active = node.task_id === selected?.task_id;
-        return `<button class="subtask-item ${kind}${active ? " active" : ""}" data-subtask-id="${escapeHtml(node.task_id)}" type="button"><span class="mark"></span><span>${escapeHtml(taskTitle(node))}</span></button>`;
-      }).join("")
-    : `<div class="empty">${escapeHtml(state.projects.length ? t("noMatch") : t("emptySubtasks"))}</div>`;
-
-  if (!selected) {
-    document.getElementById("subtask-detail").innerHTML = `<div class="empty">${escapeHtml(t("pickSubtask"))}</div>`;
-    return;
-  }
-
-  const checks = checklistOf(selected);
-  const due = subtaskEnd(state.plan || [], selected.task_id);
-  const statusLabel = nodeKind(selected) === "current" ? t("legendNow") : nodeKind(selected) === "done" ? t("legendDone") : t("legendTodo");
-  const dueLabel = due ? t("due", { date: shortDate(due) }) : "";
-  document.getElementById("subtask-detail").innerHTML = `
-    <h3>${escapeHtml(taskTitle(selected))}</h3>
-    <div class="detail-meta">${escapeHtml(statusLabel)} · ${escapeHtml(t("hours", { hours: Number(selected.estimated_time || 0).toFixed(1) }))}${dueLabel ? ` · ${escapeHtml(dueLabel)}` : ""}</div>
-    <p class="ms-copy">${escapeHtml(taskDescription(selected) || t("noNotes"))}</p>
-    <div class="checklist">
-      ${checks.map((node) => checklistRows(node)).join("")}
-    </div>
-    <div class="detail-actions">
-      <button class="secondary" type="button" disabled title="${escapeHtml(t("addItemTitle"))}">${escapeHtml(t("addItem"))}</button>
-      <button class="primary" id="save-progress" type="button">${escapeHtml(t("saveProgress"))}</button>
-    </div>
-  `;
-}
 
 function renderScheduleButton() {
   const button = document.getElementById("open-schedule");
@@ -1241,7 +1420,6 @@ function renderAll() {
   source.hidden = selected?.generationMode !== "sample";
   source.innerHTML = source.hidden ? "" : `<span class="source-badge">${escapeHtml(t("sampleBadge"))}</span>`;
   renderBoard();
-  renderSubtasks();
   renderScheduleButton();
   renderDayGrainButton();
 }
@@ -1381,6 +1559,9 @@ async function generateDraft(request) {
   document.querySelector(".stripe-track").hidden = false;
   document.getElementById("generation-cancel").focus();
   try {
+    // Finish preference writes before the service takes the draft's revision snapshot.
+    await saveTreeDisclosure();
+    if (token !== state.generationToken || controller.signal.aborted) return;
     const draft = await requestJson(request.path, { method: "POST", body: JSON.stringify(request.body), signal: controller.signal });
     if (token !== state.generationToken) {
       if (draft?.draftId) void requestJson(`/api/scheduler/plans/${encodeURIComponent(draft.draftId)}`, { method: "DELETE" }).catch(() => {});
@@ -1581,6 +1762,7 @@ async function updateTaskStatus(taskId, status) {
   state.pendingStatus.add(taskId);
   renderAll();
   try {
+    await saveTreeDisclosure();
     await requestJson(`/api/v1/tasks/${encodeURIComponent(taskId)}/status`, {
       method: "PATCH", body: JSON.stringify({ status }),
     });
@@ -1910,9 +2092,9 @@ function checklistRows(node) {
   const title = taskTitle(node);
   const statuses = { PENDING: "pendingStatus", IN_PROGRESS: "activeStatus", DONE: "doneStatus", BLOCKED: "blockedStatus", SKIPPED: "skippedStatus" };
   return `<div class="check-row${node.status === "DONE" ? " done" : ""}">
-    <input type="checkbox" aria-label="${escapeHtml(title)}" data-task-id="${escapeHtml(node.task_id)}" ${node.status === "DONE" ? "checked" : ""} ${state.pendingStatus.has(node.task_id) ? "disabled" : ""} />
+    <input type="checkbox" id="${treeId("check", node.task_id)}" aria-label="${escapeHtml(title)}" data-task-id="${escapeHtml(node.task_id)}" ${node.status === "DONE" ? "checked" : ""} ${state.pendingStatus.has(node.task_id) ? "disabled" : ""} />
     <span>${escapeHtml(title)}</span>
-    <select class="task-status" data-status-task-id="${escapeHtml(node.task_id)}" aria-label="${escapeHtml(t("statusFor", { title }))}" ${state.pendingStatus.has(node.task_id) ? "disabled" : ""}>
+    <select class="task-status" id="${treeId("status", node.task_id)}" data-status-task-id="${escapeHtml(node.task_id)}" aria-label="${escapeHtml(t("statusFor", { title }))}" ${state.pendingStatus.has(node.task_id) ? "disabled" : ""}>
       ${Object.entries(statuses).map(([value, key]) => `<option value="${value}" ${node.status === value ? "selected" : ""}>${escapeHtml(t(key))}</option>`).join("")}
     </select>
   </div>`;
@@ -2176,6 +2358,7 @@ document.getElementById("draft-regenerate").addEventListener("click", async () =
 });
 
 function setNav(nav) {
+  if (!["tree", "day", "timeline", "calendar"].includes(nav)) return;
   state.nav = nav;
   document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item.dataset.nav === nav));
   renderAll();
@@ -2207,10 +2390,31 @@ document.getElementById("cal-today").addEventListener("click", () => {
 });
 document.getElementById("search").addEventListener("input", (event) => {
   state.search = event.target.value;
+  state.searchDisclosure = {};
   renderBoard();
-  renderSubtasks();
+});
+document.addEventListener("focusin", (event) => {
+  if (event.target.closest("#board")) state.boardFocusId = event.target.id || null;
+  else if (event.target !== document.body) state.boardFocusId = null;
+});
+document.getElementById("tree-expand-all").addEventListener("click", () => {
+  setTreeExpanded(walkNodes(state.tree).filter(node => node.children?.length).map(node => node.task_id), true);
+  renderBoard();
+});
+document.getElementById("tree-collapse-all").addEventListener("click", () => {
+  setTreeExpanded(walkNodes(state.tree).filter(node => node.children?.length).map(node => node.task_id), false);
+  renderBoard();
 });
 document.getElementById("board").addEventListener("click", (event) => {
+  const toggle = event.target.closest("[data-tree-toggle]");
+  if (toggle) {
+    const node = walkNodes(state.tree).find(item => item.task_id === toggle.dataset.treeToggle);
+    if (node) setTreeExpanded([node.task_id], !treeExpanded(node));
+    renderBoard();
+    return;
+  }
+  const move = event.target.closest("[data-tree-move]");
+  if (move) { void moveTreeNode(move.dataset.treeMove, Number(move.dataset.direction)); return; }
   const day = event.target.closest("[data-day]");
   if (day && !event.target.closest("[data-milestone-id]")) {
     state.focus = parseYmd(day.dataset.day);
@@ -2222,31 +2426,16 @@ document.getElementById("board").addEventListener("click", (event) => {
   if (button.dataset.projectId) selectProject(button.dataset.projectId);
   state.selectedMilestoneId = button.dataset.milestoneId;
   state.selectedSubtaskId = button.dataset.subtaskId || null;
-  renderAll();
+  setTreeExpanded([state.selectedMilestoneId, ...subtasksOf(selectedMilestone()).map(node => node.task_id)], true);
+  setNav("tree");
+  document.getElementById(treeId("toggle", state.selectedSubtaskId || state.selectedMilestoneId))?.focus();
 });
 document.getElementById("board").addEventListener("change", (event) => {
-  const input = event.target.closest("input[data-task-id]");
-  if (!input) return;
-  handleTaskCheck(input);
-});
-document.getElementById("subtask-list").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-subtask-id]");
-  if (!button) return;
-  state.selectedSubtaskId = button.dataset.subtaskId;
-  renderSubtasks();
-
-});
-document.getElementById("subtask-detail").addEventListener("change", (event) => {
   const status = event.target.closest("select[data-status-task-id]");
   if (status) { void updateTaskStatus(status.dataset.statusTaskId, status.value); return; }
   const input = event.target.closest("input[data-task-id]");
   if (!input) return;
   handleTaskCheck(input);
-});
-document.getElementById("subtask-detail").addEventListener("click", (event) => {
-  if (event.target.id === "save-progress") {
-    void fetchTree(true).then((loaded) => { if (loaded) showToast(t("progressSynced")); });
-  }
 });
 
 function fillEntryForm() {

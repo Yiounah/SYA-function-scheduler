@@ -76,7 +76,7 @@ class MemoryStore:
             except Exception:
                 # A rejected disk write must not leave a success-looking live
                 # tree that disappears at the next application restart.
-                await self.restore_projects(self._persisted_projects)
+                await self.restore_projects(self._persisted_projects, preserve_active=True)
                 raise
             self._persisted_projects = await self.list_projects()
 
@@ -171,14 +171,16 @@ class MemoryStore:
             self._activate(project)
         await self._changed()
 
-    async def restore_projects(self, projects: list[PlannedProject]) -> None:
+    async def restore_projects(self, projects: list[PlannedProject], *, preserve_active: bool = False) -> None:
         """Replace the in-memory list from host-owned storage. Does not write."""
 
         async with self._lock:
+            active_id = self._task_tree.task_id if preserve_active and self._task_tree else None
             self._projects = [PlannedProject(p.voyage.model_copy(deep=True), p.tree.model_copy(deep=True)) for p in projects]
             self._persisted_projects = [PlannedProject(p.voyage.model_copy(deep=True), p.tree.model_copy(deep=True)) for p in projects]
             if self._projects:
-                self._activate(self._projects[-1])
+                active = next((p for p in self._projects if p.tree.task_id == active_id), self._projects[-1])
+                self._activate(active)
             else:
                 self._voyage = None
                 self._task_tree = None
@@ -212,7 +214,7 @@ class MemoryStore:
                 return None
             return node.model_dump(mode="json")
 
-    async def mutate_tree(self, mutator: Callable[[TaskNode], T]) -> T:
+    async def mutate_tree(self, mutator: Callable[[TaskNode], T], *, activate: bool = True) -> T:
         """Apply an atomic tree mutation under lock and return mutation output."""
         async with self._lock:
             candidates = self._mutation_order()
@@ -227,7 +229,8 @@ class MemoryStore:
                 except KeyError as exc:
                     missed = exc
                     continue
-                self._activate(project)
+                if activate:
+                    self._activate(project)
                 changed = True
                 break
             if not changed:

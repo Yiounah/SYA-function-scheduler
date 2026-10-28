@@ -9,12 +9,13 @@
  */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { cp, mkdtemp, mkdir, readFile, writeFile, access } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, writeFile, access, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dependencyRoots = [repository, resolve(repository, '../SYA-UI'), resolve(repository, '../..'), resolve(repository, '../../app')];
@@ -26,13 +27,13 @@ function installedModule(name) {
   throw new Error(`Install ${name} in the Scheduler or host checkout before running Electron acceptance.`);
 }
 const { _electron, expect } = installedModule(process.env.PLAYWRIGHT_MODULE_PATH || '@playwright/test');
-const work = await mkdtemp(join(tmpdir(), 'scheduler-electron-'));
+const work = await realpath(await mkdtemp(join(tmpdir(), 'scheduler-electron-')));
 const isolated = join(work, 'app');
 const profile = join(work, 'profile');
 const data = join(work, 'data');
-const evidence = join(work, 'evidence');
+const evidence = join(repository, '_bmad-output', 'planner-electron', new Date().toISOString().replace(/[:.]/g, '-'));
 await mkdir(isolated);
-await mkdir(evidence);
+await mkdir(evidence, { recursive: true });
 await mkdir(profile);
 await mkdir(data);
 for (const name of ['app', 'desktop', 'bin', 'package.json']) {
@@ -51,7 +52,14 @@ let sequence = 0;
 const pending = [];
 const checks = [];
 const pageErrors = [];
-const launchedPids = new Set();
+const launchedProcesses = new Map();
+const buildHashes = {};
+for (const name of ['desktop/main.cjs', 'app/static/index.html', 'app/static/app.js', 'app/static/styles.css']) {
+  const source = await readFile(join(repository, name));
+  assert.deepEqual(await readFile(join(isolated, name)), source);
+  buildHashes[name] = createHash('sha256').update(source).digest('hex');
+}
+let versions;
 let app;
 let page;
 let baseURL;
@@ -60,8 +68,12 @@ function fixtureTree(goal) {
   const prefix = `fixture-${++sequence}`;
   const leaf = (suffix, title) => ({ task_id: `${prefix}-${suffix}`, title, estimated_time: 1, status: 'PENDING', children: [] });
   return { task_id: `${prefix}-root`, title: goal || 'Electron acceptance project', estimated_time: 4, status: 'PENDING', children: [
-    { task_id: `${prefix}-stage`, title: '收集证据', estimated_time: 4, status: 'PENDING', children: [
-      { task_id: `${prefix}-task`, title: '准备实验方案', estimated_time: 4, status: 'PENDING', children: [leaf('a', '阅读基线方法'), leaf('b', '比较可行方案'), leaf('c', '设计最小实验'), leaf('d', '整理复现清单')] },
+    { task_id: `${prefix}-stage`, title: '收集证据', estimated_time: 3, status: 'PENDING', children: [
+      { task_id: `${prefix}-task`, title: '准备实验方案', estimated_time: 2, status: 'PENDING', children: [leaf('a', '阅读基线方法'), leaf('b', '比较可行方案')] },
+      { task_id: `${prefix}-task-next`, title: '设计实验步骤', estimated_time: 1, status: 'PENDING', children: [leaf('c', '设计最小实验')] },
+    ] },
+    { task_id: `${prefix}-stage-next`, title: '复现与总结', estimated_time: 1, status: 'PENDING', children: [
+      { task_id: `${prefix}-task-final`, title: '整理研究材料', estimated_time: 1, status: 'PENDING', children: [leaf('d', '整理复现清单')] },
     ] },
   ] };
 }
@@ -91,13 +103,24 @@ const fixturePort = provider.address().port;
 const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) => typeof value === 'string' && !key.startsWith('SYA_') && !key.startsWith('OPENAI_') && !key.startsWith('FUNCTION_RUNTIME_') && !['PYTHONPATH', 'ELECTRON_RUN_AS_NODE'].includes(key)));
 Object.assign(env, { PYTHON: python, SYA_SCHEDULER_DATA_DIR: data, SYA_OPENAI_API_KEY: 'fixture-only', SYA_OPENAI_BASE_URL: `http://127.0.0.1:${fixturePort}/v1`, SYA_OPENAI_MODEL: 'local-fixture', SYA_LLM_TIMEOUT_SECONDS: '5', TZ: 'Asia/Shanghai' });
 
-function descendants(rootPid) {
-  const rows = execFileSync('ps', ['-axo', 'pid=,ppid='], { encoding: 'utf8' }).trim().split('\n').map((line) => line.trim().split(/\s+/).map(Number));
-  const ids = new Set([rootPid]);
-  for (let pass = 0; pass < 5; pass++) for (const [pid, parent] of rows) if (ids.has(parent)) ids.add(pid);
-  return [...ids];
+function processRows() {
+  return execFileSync('ps', ['-axo', 'pid=,ppid=,lstart=,command='], { encoding: 'utf8' }).trim().split('\n').flatMap((line) => {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+\s+\S+\s+\d+\s+\S+\s+\d+)\s+(.*)$/);
+    return match ? [{ pid: Number(match[1]), parent: Number(match[2]), started: match[3], command: match[4] }] : [];
+  });
 }
-function isAlive(pid) { try { process.kill(pid, 0); return true; } catch { return false; } }
+function rememberDescendants(rootPid) {
+  const rows = processRows();
+  const ids = new Set([rootPid]);
+  for (let pass = 0; pass < 8; pass++) for (const row of rows) if (ids.has(row.parent)) ids.add(row.pid);
+  for (const row of rows) if (ids.has(row.pid)) launchedProcesses.set(row.pid, row);
+}
+function survivors() {
+  return processRows().filter((row) => {
+    const known = launchedProcesses.get(row.pid);
+    return known && row.started === known.started && row.command === known.command;
+  }).map(({ pid, command }) => ({ pid, command }));
+}
 async function launch() {
   app = await _electron.launch({ executablePath, args: [isolated, '--disable-gpu'], cwd: isolated, env, timeout: 40_000 });
   page = await app.firstWindow();
@@ -106,16 +129,32 @@ async function launch() {
   page.on('pageerror', (error) => pageErrors.push(error.message));
   await page.waitForURL(/http:\/\/127\.0\.0\.1:\d+\//);
   baseURL = page.url().replace(/\/$/, '');
-  for (const pid of descendants(app.process().pid)) launchedPids.add(pid);
-  await expect(page.locator('#open-modal-top')).toBeVisible();
+  rememberDescendants(app.process().pid);
+  versions = await app.evaluate(() => ({ electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node }));
+  const security = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences());
+  assert.equal(security.contextIsolation, true);
+  assert.equal(security.nodeIntegration, false);
+  await expect(page.locator('#open-modal')).toBeVisible();
+  await expect(page.locator('#open-modal-top')).toHaveCount(0);
 }
 async function stop() {
   if (!app) return;
   const old = app;
-  app = null;
-  for (const pid of descendants(old.process().pid)) launchedPids.add(pid);
-  await old.close();
-  await expect.poll(() => [...launchedPids].filter(isAlive), { timeout: 10_000 }).toEqual([]);
+  rememberDescendants(old.process().pid);
+  const child = old.process();
+  try {
+    await old.evaluate(({ app }) => { setTimeout(() => app.quit(), 10); });
+    await expect.poll(() => child.exitCode !== null || child.signalCode !== null, { timeout: 10_000 }).toBe(true);
+    await expect.poll(survivors, { timeout: 10_000 }).toEqual([]);
+  } finally {
+    // A failed assertion must not leave a test runtime behind. The PID, start
+    // time and command must still match the descendants of our own launch.
+    for (const { pid } of survivors()) {
+      try { process.kill(pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    }
+    app = null;
+    await expect.poll(survivors, { timeout: 10_000 }).toEqual([]);
+  }
 }
 async function api(path, options = {}) {
   const response = await fetch(`${baseURL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } });
@@ -127,12 +166,32 @@ async function projects() { return (await api('/api/v1/projects')).projects; }
 async function slots() { const timeline = await api('/api/scheduler/timeline?projectId=all'); return timeline.slots || timeline.events; }
 function leaves(node) { return node.children?.length ? node.children.flatMap(leaves) : [node]; }
 async function snapshot() { return { projects: await projects(), slots: await slots(), config: await api('/api/scheduler/config') }; }
+async function savedTree(projectId) { return (await projects()).find((project) => project.tree.task_id === projectId).tree; }
+function unorderedTree(node) { return { ...node, children: (node.children || []).map(unorderedTree).sort((a, b) => a.task_id.localeCompare(b.task_id)) }; }
+const toggle = (id) => page.locator(`[data-tree-toggle="${id}"]`);
+async function treeView() { await page.locator('[data-nav="tree"]:visible').first().click(); }
+async function expandNode(id) {
+  if (await toggle(id).getAttribute('aria-expanded') === 'false') await toggle(id).click();
+  await expect(toggle(id)).toHaveAttribute('aria-expanded', 'true');
+}
+async function expandTree() {
+  await treeView();
+  for (const section of await page.locator('article[data-tree-stage-id]').all()) await expandNode(await section.getAttribute('data-tree-stage-id'));
+  for (const section of await page.locator('section[data-tree-task-id]').all()) await expandNode(await section.getAttribute('data-tree-task-id'));
+}
+async function moveNode(id, direction) {
+  const response = page.waitForResponse((value) => value.url().endsWith('/api/scheduler/tasks/reorder') && value.request().method() === 'POST');
+  await page.locator(`[data-tree-move="${id}"][data-direction="${direction}"]`).click();
+  const result = await response;
+  assert.equal(result.status(), 200);
+  assert.equal((await result.json()).ok, true);
+}
 async function closeSuggestions() {
   for (const id of ['focus-keep', 'grain-suggest-keep']) if (await page.locator(`#${id}`).isVisible()) await page.locator(`#${id}`).click();
 }
 async function openPlan(goal, source = 'model') {
   await closeSuggestions();
-  await page.locator('#open-modal-top').click();
+  await page.locator('#open-modal').click();
   await page.locator('#goal').fill(goal);
   await page.locator('#deadline-amount').fill('1');
   await page.locator('#deadline-unit').selectOption('day');
@@ -190,7 +249,35 @@ try {
   assert.equal(leaves(current.tree).length, 4);
   const initialSlots = await slots();
   assert.ok(initialSlots.length > 0);
-  await expect(page.locator('#subtask-detail input[data-task-id]')).toHaveCount(4);
+  await expect(page.locator('#board.task-tree-board')).toBeVisible();
+  await expect(page.locator('article[data-tree-stage-id]')).toHaveCount(2);
+  await expect(page.locator('section[data-tree-task-id]')).toHaveCount(3);
+  await expect(page.locator('#board input[data-task-id]')).toHaveCount(4);
+  await expect(page.locator('#project-title')).toHaveText('红鸟项目 · 资料整理（合成示例）');
+  const stageBounds = await page.locator('article[data-tree-stage-id]').evaluateAll((items) => items.map((item) => { const r = item.getBoundingClientRect(); return { x: r.x, y: r.y }; }));
+  assert.equal(Math.round(stageBounds[0].y), Math.round(stageBounds[1].y));
+  assert.ok(stageBounds[1].x > stageBounds[0].x, 'stages must be horizontal columns');
+  await screenshot('02-tree-overview');
+  await record('Project overview retained above horizontal stages, vertical subtasks and checklists');
+
+  const stageId = current.tree.children[0].task_id;
+  const otherStageId = current.tree.children[1].task_id;
+  const taskId = current.tree.children[0].children[0].task_id;
+  const otherTaskId = current.tree.children[0].children[1].task_id;
+  await toggle(stageId).focus();
+  await toggle(stageId).press('Enter');
+  await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator(`section[data-tree-task-id="${taskId}"]`)).not.toBeVisible();
+  await expect(toggle(otherStageId)).toHaveAttribute('aria-expanded', 'true');
+  await toggle(stageId).press('Space');
+  await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'true');
+  await toggle(taskId).click();
+  await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
+  await page.reload();
+  await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
+  await expandNode(taskId);
+  await record('Stage and subtask disclosure supports keyboard control and survives refresh independently');
+
   for (const nav of ['timeline', 'calendar', 'day']) {
     await page.locator(`.sidebar [data-nav="${nav}"]`).click();
     assert.deepEqual(await slots(), initialSlots);
@@ -198,16 +285,47 @@ try {
     await screenshot(`02-view-${nav}`);
   }
   await record('Confirmed four-level plan; day/week/month share unchanged stored slots');
+  await treeView();
 
   const first = leaves(current.tree)[0].task_id;
   const stale = await api('/api/scheduler/granularity/preview', { method: 'POST', body: JSON.stringify({ projectId: current.tree.task_id, taskId: current.tree.task_id, level: 'finer' }) });
-  await page.locator(`#subtask-detail input[data-task-id="${first}"]`).check();
+  await page.locator(`#board input[data-task-id="${first}"]`).check();
   await expect.poll(async () => leaves((await projects())[0].tree)[0].status).toBe('DONE');
-  await expect(page.locator(`#subtask-detail input[data-task-id="${first}"]`)).toBeChecked();
+  await expect(page.locator(`#board input[data-task-id="${first}"]`)).toBeChecked();
   const refused = await api(`/api/scheduler/plans/${stale.draftId}/commit`, { method: 'POST', body: JSON.stringify({ expectedRevision: stale.baseRevision, requestId: 'electron-stale-check' }) });
   assert.equal(refused.httpStatus, 409);
   assert.equal(refused.error.code, 'STALE_DRAFT');
   await record('Checklist completion persists and rejects an older draft');
+
+  const beforeOrder = await savedTree(current.tree.task_id);
+  const orderedLeaf = beforeOrder.children[0].children[0].children[1].task_id;
+  await moveNode(orderedLeaf, -1);
+  await expect.poll(async () => (await savedTree(current.tree.task_id)).children[0].children[0].children[0].task_id).toBe(orderedLeaf);
+  await moveNode(otherTaskId, -1);
+  await expect.poll(async () => (await savedTree(current.tree.task_id)).children[0].children[0].task_id).toBe(otherTaskId);
+  await moveNode(otherStageId, -1);
+  await expect.poll(async () => (await savedTree(current.tree.task_id)).children[0].task_id).toBe(otherStageId);
+  assert.deepEqual(unorderedTree(await savedTree(current.tree.task_id)), unorderedTree(beforeOrder), 'sorting changes only sibling order, not identity, progress or parentage');
+  await expect(page.locator(`#board input[data-task-id="${first}"]`)).toBeChecked();
+  await screenshot('03-tree-reordered');
+  await record('Stage, subtask and checklist sibling ordering persists without changing completed progress or parentage');
+
+  await toggle(stageId).click();
+  await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'false');
+  await page.locator('#search').fill('设计最小实验');
+  await expect(page.locator(`li[data-tree-leaf-id="${current.tree.children[0].children[1].children[0].task_id}"]`)).toBeVisible();
+  await page.locator('#search').fill('');
+  await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'false');
+  await expandNode(stageId);
+  await record('Search reveals matching checklist ancestry without losing the saved collapsed state');
+
+  await app.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.setMinimumSize(360, 600); window.setContentSize(760, 900); });
+  await expect(page.locator('#board.task-tree-board')).toBeVisible();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow window must not scroll the entire document horizontally');
+  await expect(page.locator('#open-modal')).toBeVisible();
+  await screenshot('04-tree-narrow');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 1020));
+  await record('Narrow window keeps the planning entry and confines horizontal stages to their scroll area');
 
   await closeSuggestions();
   await page.locator('#open-day-grain').click();
@@ -223,9 +341,45 @@ try {
   assert.deepEqual((await projects())[0].tree, beforeGrain);
   await page.locator('#draft-cancel').click();
   assert.deepEqual((await projects())[0].tree, beforeGrain);
-  await page.locator('#grain-apply').click();
-  await expectDraft();
+  await page.locator('#grain-cancel').click();
+
+  // Hold one outgoing preference request, then forward it unchanged to the real
+  // HTTP owner. No scheduler response is substituted: this only adds latency.
+  let releaseDisclosure;
+  const disclosureGate = new Promise((resolveGate) => { releaseDisclosure = resolveGate; });
+  let disclosureHeld = false;
+  let previewStarted = false;
+  const observePreview = (request) => { if (request.method() === 'POST' && request.url().endsWith('/api/scheduler/granularity/preview')) previewStarted = true; };
+  const delayDisclosure = async (route) => {
+    const request = route.request();
+    if (!disclosureHeld && request.method() === 'PUT' && request.postDataJSON()?.focusflow?.treeDisclosure) {
+      disclosureHeld = true;
+      await disclosureGate;
+    }
+    await route.continue();
+  };
+  await page.route('**/api/scheduler/config', delayDisclosure);
+  page.on('request', observePreview);
+  try {
+    await toggle(stageId).click();
+    await expect.poll(() => disclosureHeld).toBe(true);
+    await page.locator('#open-day-grain').click();
+    await page.locator('#grain-target').selectOption(current.tree.task_id);
+    await page.locator('[data-grain="fine"]').click();
+    await page.locator('#grain-target-minutes').fill('20');
+    await page.locator('#grain-apply').click();
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+    assert.equal(previewStarted, false, 'preview must await the in-flight disclosure save');
+    releaseDisclosure();
+    await expectDraft();
+    assert.equal(previewStarted, true);
+  } finally {
+    releaseDisclosure();
+    page.off('request', observePreview);
+    await page.unroute('**/api/scheduler/config', delayDisclosure);
+  }
   await commit();
+  await record('A preview waits for delayed disclosure persistence and confirms without a self-inflicted stale-draft error');
   await expect.poll(async () => leaves((await projects())[0].tree).length).toBeGreaterThan(4);
   await expect(page.locator('#open-day-grain')).toContainText('更细');
   const refined = (await projects())[0].tree;
@@ -291,6 +445,7 @@ try {
   const minutesOf = (slot) => (new Date(slot.endTime) - new Date(slot.startTime)) / 60000;
   assert.ok(routineTimeline.breaks.filter((slot) => slot.kind === 'break').some((slot) => minutesOf(slot) === 5));
   assert.ok(routineTimeline.breaks.some((slot) => slot.kind === 'recovery' && minutesOf(slot) === 15));
+  await page.locator('.sidebar [data-nav="day"]').click();
   await expect(page.locator('.break-item').first()).toBeVisible();
   assert.equal(await page.locator('.break-item input').count(), 0);
   await screenshot('07-overview-with-breaks');
@@ -384,6 +539,14 @@ try {
   await record('Monitor preserves the exact active task/session; missing or absent tasks require explicit selection');
 
   await closeSuggestions();
+  await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await expandTree();
+  await toggle(taskId).click();
+  await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
+  await toggle(stageId).click();
+  await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'false');
+  await expect.poll(async () => (await api('/api/scheduler/config')).focusflow.treeDisclosure?.[current.tree.task_id]?.[stageId]).toBe(false);
+  await expect.poll(async () => (await api('/api/scheduler/config')).focusflow.treeDisclosure?.[current.tree.task_id]?.[taskId]).toBe(false);
   await page.waitForLoadState('networkidle');
   const beforeRestart = await snapshot();
   await screenshot('06-before-restart');
@@ -397,8 +560,17 @@ try {
   assert.equal((await api('/api/scheduler/config')).focusMinutes, 25);
   assert.equal((await api('/api/scheduler/config')).todayGrain.targetMinutes, 20);
   assert.ok((await api('/api/scheduler/timeline?projectId=all')).breaks.length > 0);
+  await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await expect(page.locator('#board.task-tree-board')).toBeVisible();
+  await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'false');
+  await expandNode(stageId);
+  await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator(`#board input[data-task-id="${first}"]`)).not.toBeVisible();
+  await expandNode(taskId);
+  await expect(page.locator(`#board input[data-task-id="${first}"]`)).toBeChecked();
+  assert.equal((await savedTree(current.tree.task_id)).children[0].task_id, otherStageId);
   await screenshot('07-after-restart');
-  await record('True Electron exit and restart restore projects, progress, routine and stable slots');
+  await record('True Electron exit and restart restore sibling order, project disclosure, progress, routine and stable slots');
 
   // CAP-8 uses real status actions at the current local time, never a fake clock
   // or a seeded observation. Clear only this test's earlier observation metadata.
@@ -417,11 +589,12 @@ try {
   await page.waitForLoadState('networkidle');
   await closeSuggestions();
   await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await expandTree();
   const workIds = leaves((await projects()).find((project) => project.tree.task_id === current.tree.task_id).tree)
     .filter((node) => node.status === 'PENDING').slice(0, 2).map((node) => node.task_id);
   assert.equal(workIds.length, 2);
   for (const [index, id] of workIds.entries()) {
-    await page.locator(`#subtask-detail select[data-status-task-id="${id}"]`).selectOption('IN_PROGRESS');
+    await page.locator(`#board select[data-status-task-id="${id}"]`).selectOption('IN_PROGRESS');
     await expect.poll(async () => (await api('/api/scheduler/config')).focusflow.workLog.length).toBe(index + 1);
     if (index === 0) await expect(page.locator('#focus-modal')).not.toBeVisible();
   }
@@ -442,18 +615,23 @@ try {
   assert.deepEqual(pageErrors, []);
   await stop();
   await record('No renderer errors and no Electron/runtime child processes remain');
-  await writeFile(join(evidence, 'result.json'), JSON.stringify({ ok: true, checks, modelFixture: true, liveModelTested: false, repository, evidence, pageErrors }, null, 2));
+  await writeFile(join(evidence, 'result.json'), JSON.stringify({ ok: true, checks, modelFixture: true, liveModelTested: false, repository, evidence, isolated, profile, data, executablePath, versions, buildHashes, pageErrors, survivors: survivors() }, null, 2));
   console.log(JSON.stringify({ ok: true, checks: checks.length, evidence }));
 } catch (error) {
   if (page && !page.isClosed()) await screenshot('failure').catch(() => {});
-  await writeFile(join(evidence, 'result.json'), JSON.stringify({ ok: false, checks, error: error.stack, pageErrors, evidence }, null, 2));
+  await writeFile(join(evidence, 'result.json'), JSON.stringify({ ok: false, checks, error: error.stack, pageErrors, evidence, isolated, profile, data, executablePath, versions, buildHashes }, null, 2));
   console.error(error.stack);
   console.error(`Evidence: ${evidence}`);
   process.exitCode = 1;
 } finally {
   fixtureMode = 'success';
   pending.splice(0).forEach((reply) => reply());
-  await stop().catch((error) => { console.error(`Cleanup: ${error.message}`); process.exitCode = 1; });
+  let cleanupError = null;
+  await stop().catch((error) => { cleanupError = error.stack; console.error(`Cleanup: ${error.message}`); process.exitCode = 1; });
   provider.closeAllConnections();
   await new Promise((resolveClose) => provider.close(resolveClose));
+  const reportPath = join(evidence, 'result.json');
+  const report = JSON.parse(await readFile(reportPath, 'utf8'));
+  const remaining = survivors();
+  await writeFile(reportPath, JSON.stringify({ ...report, ok: report.ok && !cleanupError && remaining.length === 0, cleanup: { error: cleanupError, survivors: remaining, providerClosed: true } }, null, 2));
 }
