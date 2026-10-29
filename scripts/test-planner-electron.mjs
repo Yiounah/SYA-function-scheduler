@@ -179,7 +179,11 @@ async function snapshot() { return { projects: await projects(), slots: await sl
 async function savedTree(projectId) { return (await projects()).find((project) => project.tree.task_id === projectId).tree; }
 function unorderedTree(node) { return { ...node, children: (node.children || []).map(unorderedTree).sort((a, b) => a.task_id.localeCompare(b.task_id)) }; }
 const toggle = (id) => page.locator(`[data-tree-toggle="${id}"]`);
-async function treeView() { await page.locator('[data-nav="tree"]:visible').first().click(); }
+async function treeView() { await page.locator('#timeline-card').scrollIntoViewIfNeeded(); }
+async function selectProject(id) {
+  await page.locator('#open-projects').click();
+  await page.locator(`#project-list [data-project-id="${id}"]`).click();
+}
 async function expandNode(id) {
   if (await toggle(id).getAttribute('aria-expanded') === 'false') await toggle(id).click();
   await expect(toggle(id)).toHaveAttribute('aria-expanded', 'true');
@@ -312,7 +316,7 @@ try {
   await expandNode(taskId);
   await record('Stage and subtask disclosure supports keyboard control and survives refresh independently');
 
-  await expect(page.locator('.sidebar [data-nav]')).toHaveCount(1);
+  await expect(page.locator('.sidebar, [data-nav]')).toHaveCount(0);
   await expect(page.locator('.week-board, .month-grid, #calendar-visualization')).toHaveCount(0);
   await dayView();
   const dayCards = await calendar().getByTestId('calendar-work-block').count();
@@ -356,10 +360,9 @@ try {
   await page.locator('#sya-action-calendar').getByRole('button',{name:'今天',exact:true}).click();
   await calendarRoot.dispose();
   await record('One shared calendar header keeps correct day/week/month titles, navigation, month ends and year boundaries');
-  await page.locator('#project-list [data-project-id]').first().click();
-  await expect(page.locator('.sidebar [data-nav="tree"]')).toHaveClass(/active/);
+  await selectProject(current.tree.task_id);
   await expect(page.locator('.project-head')).toBeInViewport();
-  await record('All calendar modes reuse the daily action cards and actions; sidebar only links the task tree and projects');
+  await record('All calendar modes reuse the daily action cards and actions; project picker navigates directly to the task tree');
   await treeView();
 
   const first = leaves(current.tree)[0].task_id;
@@ -679,9 +682,46 @@ try {
   await expect(page.locator('#project-source')).toContainText('示例');
   await record('Explicit sample is labeled and makes no model generation request');
 
+  // All-project navigation is a read-only view of canonical completion counts.
+  const beforeBrowse = await snapshot();
+  await page.locator('#open-projects').hover();
+  await expect(page.locator('#project-picker')).toBeVisible();
+  await expect(page.locator('#project-list button').first()).toHaveText('全部课题');
+  await expect(page.locator('#project-list button')).toHaveCount(beforeBrowse.projects.length + 1);
+  await page.locator('#project-list [data-project-id="all"]').hover();
+  await expect(page.locator('#project-picker')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#project-picker')).not.toBeVisible();
+  await expect(page.locator('#open-projects')).toBeFocused();
+  await page.locator('#open-projects').press('ArrowDown');
+  await expect(page.locator('#project-list button').first()).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#projects-overview')).toBeVisible();
+  await expect(page.locator('#timeline-card')).not.toBeVisible();
+  await expect(page.locator('.overview-project')).toHaveCount(beforeBrowse.projects.length);
+  for (const project of beforeBrowse.projects) {
+    const rows = leaves(project.tree);
+    const percent = Math.round(rows.filter(row => row.status === 'DONE').length / rows.length * 100);
+    await expect(page.locator(`#overview-list [data-project-id="${project.tree.task_id}"] .muted`)).toHaveText(`${percent}%`);
+  }
+  await screenshot('all-projects');
+  assert.deepEqual(await snapshot(), beforeBrowse);
+  await page.reload();
+  await closeSuggestions();
+  await expect(page.locator('#projects-overview')).toBeVisible();
+  assert.deepEqual((await projects()).map(project => project.tree), beforeBrowse.projects.map(project => project.tree));
+  await page.locator('.overview-project').first().click();
+  await expect(page.locator('#selected-project')).toBeVisible();
+  await expect(page.locator('#board')).toBeVisible();
+  const firstTitle = await page.locator('#project-title').textContent();
+  await page.reload();
+  await closeSuggestions();
+  await expect(page.locator('#project-title')).toHaveText(firstTitle);
+  await record('Hover and keyboard project picker lists all projects; progress overview is read-only, cards navigate and selection survives reload');
+
   // Stale-draft handling in the actual confirmation dialog.
   current = (await projects()).find((project) => project.tree.task_id === refined.task_id);
-  await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await selectProject(current.tree.task_id);
   await closeSuggestions();
   await page.locator('#open-day-grain').click();
   await page.locator('#grain-target').selectOption(current.tree.task_id);
@@ -730,7 +770,7 @@ try {
   await record('Monitor preserves the exact active task/session; missing or absent tasks require explicit selection');
 
   await closeSuggestions();
-  await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await selectProject(current.tree.task_id);
   await expandTree();
   await toggle(taskId).click();
   await expect(toggle(taskId)).toHaveAttribute('aria-expanded', 'false');
@@ -754,7 +794,7 @@ try {
   assert.equal((await api(`/api/scheduler/tasks/${postponedTaskId}`)).scheduledDate,postponedDate);
   assert.equal((await api(`/api/scheduler/tasks/${postponedTaskId}`)).title,postponedTitle);
   assert.ok((await api('/api/scheduler/timeline?projectId=all')).breaks.length > 0);
-  await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await selectProject(current.tree.task_id);
   await expect(page.locator('#board.task-tree-board')).toBeVisible();
   await expect(toggle(stageId)).toHaveAttribute('aria-expanded', 'false');
   await expandNode(stageId);
@@ -793,7 +833,7 @@ try {
   await page.reload();
   await page.waitForLoadState('networkidle');
   await closeSuggestions();
-  await page.locator(`.project-item[data-project-id="${current.tree.task_id}"]`).click();
+  await selectProject(current.tree.task_id);
   await expandTree();
   const workIds = leaves((await projects()).find((project) => project.tree.task_id === current.tree.task_id).tree)
     .filter((node) => node.status === 'PENDING').slice(0, 2).map((node) => node.task_id);

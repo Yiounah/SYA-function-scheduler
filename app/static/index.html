@@ -8,22 +8,6 @@
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar">
-        <button class="new-plan" id="open-modal" type="button">+ <span data-i18n="newPlan">新建规划</span></button>
-        <div>
-          <p class="nav-label" data-i18n="nav">导航</p>
-          <div class="nav-list">
-            <button class="nav-item active" data-nav="tree" type="button" data-i18n="taskTree">任务树</button>
-          </div>
-        </div>
-        <div>
-          <p class="section-label" data-i18n="myProjects">我的课题</p>
-          <div class="project-list" id="project-list"></div>
-          <button class="ghost" id="open-modal-secondary" type="button">+ <span data-i18n="newProject">新建课题</span></button>
-        </div>
-        <div class="sidebar-footer" id="sidebar-footer">本学期 · 0 个进行中课题</div>
-      </aside>
-
       <section class="workspace">
         <header class="topbar">
           <div class="brand" data-i18n="brand">任务规划</div>
@@ -42,8 +26,20 @@
         </header>
 
         <main class="content">
-          <div class="workspace-intro"><p class="eyebrow" data-i18n="workspaceEyebrow">SCHEDULE · 任务规划</p><h1 data-i18n="workspaceTitle">把目标，变成今天的一小步。</h1><p data-i18n="workspaceSubtitle">先确定方向，再安排节奏。计划可以调整，每一次改变都由你确认。</p></div>
-          <section class="card project-head">
+          <div class="planner-intro">
+            <div class="workspace-intro"><p class="eyebrow" data-i18n="workspaceEyebrow">SCHEDULE · 任务规划</p><h1 data-i18n="workspaceTitle">把目标，变成今天的一小步。</h1><p data-i18n="workspaceSubtitle">先确定方向，再安排节奏。计划可以调整，每一次改变都由你确认。</p></div>
+            <div class="intro-actions">
+              <button class="new-plan" id="open-modal" type="button">+ <span data-i18n="newPlan">新建规划</span></button>
+              <button class="projects-button" id="open-projects" type="button" popovertarget="project-picker" aria-controls="project-picker" aria-expanded="false"><span data-i18n="myProjects">我的课题</span><span aria-hidden="true">⌄</span></button>
+              <nav id="project-picker" class="project-picker" popover="auto" data-i18n-aria="myProjects" aria-label="我的课题"><div class="project-list" id="project-list"></div></nav>
+            </div>
+          </div>
+          <div class="sync-warning" id="sync-warning" role="status" hidden></div>
+          <section id="projects-overview" aria-labelledby="overview-title" hidden>
+            <div class="card-head"><h2 id="overview-title" data-i18n="allProjects">全部课题</h2><span class="muted" id="overview-count"></span></div>
+            <div class="overview-list" id="overview-list"></div>
+          </section>
+          <section class="card project-head" id="selected-project">
             <div>
               <div class="title-row">
               <h2 id="project-title">还没有课题</h2>
@@ -51,7 +47,6 @@
               </div>
               <div class="meta" id="project-meta">写下长程目标后生成研究时间轴</div>
               <div id="project-source" hidden></div>
-              <div class="sync-warning" id="sync-warning" role="status" hidden></div>
             </div>
             <div class="progress-wrap">
               <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>

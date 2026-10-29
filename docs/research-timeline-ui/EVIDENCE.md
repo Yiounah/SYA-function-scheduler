@@ -1,5 +1,12 @@
 # Delivery evidence
 
+## 2026-10-29: Default SYA task module and project picker
+
+- The host `/schedule` route now opens this same planner directly. Removed the planner sidebar; placed New plan / My projects vertically beside the unchanged hero. The native popover supports hover, click, keyboard, Escape and constrained narrow-window positioning. All projects reuses the same completion calculation as the individual summary; choosing a card returns to its tree.
+- `npm test`: 71 service cases plus desktop syntax checks passed. Standalone Electron: 28 checks passed in `_bmad-output/planner-electron/2026-10-29T06-41-16-786Z/result.json`, including real progress, all-project read-only navigation, hover/keyboard, selection refresh, granularity/routine, editing, and true quit/relaunch. A first run exposed a scroll-triggered premature popover close (fixed); a second run exposed a new test comparing revision after explicitly dismissing a suggestion (read-only assertion moved before that separate write).
+- Host renderer/main/preload compiled; all 8 native journeys passed in `SYA-UI/_bmad-output/scheduler-task-tree/report.json`, including the latest small-window positioning and flex-height fixes, direct pet navigation, calendar editor, real Focus handoff and restart. Screenshots inspected at normal width and a real 390 px window. Both suites have no renderer errors or remaining owned processes. External model HTTP fixtures only; no live-model or packaged-release claim.
+- The retired React form's browser assertions were consolidated into these owner-backed native suites; unrelated Focus/Search browser journeys remain. API/manifest contracts are unchanged.
+
 ## 2026-10-29: Rhythm controls in the top bar
 
 - Moved the existing rhythm label and buttons between the planner title and search. Kept their IDs, handlers and existing dialogs. The header can wrap and grow; no JS, HTTP, IPC or scheduling logic changed. Wide and narrow desktop screenshots were inspected.

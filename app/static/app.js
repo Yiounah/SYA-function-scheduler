@@ -30,6 +30,8 @@ const COPY = {
     "timeline": "周",
     "calendar": "月",
     "myProjects": "我的课题",
+    "allProjects": "全部课题",
+    "projectCount": "{count} 个课题",
     "newProject": "新建课题",
     "sidebarFooter": "本学期 · {count} 个进行中课题",
     "noProjects": "暂无课题",
@@ -274,6 +276,8 @@ const COPY = {
     "timeline": "Week",
     "calendar": "Month",
     "myProjects": "My projects",
+    "allProjects": "All projects",
+    "projectCount": "{count} projects",
     "newProject": "New project",
     "sidebarFooter": "This term · {count} active project(s)",
     "noProjects": "No projects yet",
@@ -501,6 +505,7 @@ const CYCLE_FIELDS = { focusMinutes: ["focus-minutes", 45], breakMinutes: ["brea
 const state = {
   projects: [],
   selectedProjectId: null,
+  projectView: window.localStorage.getItem("focusflow.projectView") || "project",
   tree: null,
   ws: null,
   inflight: false,
@@ -1056,40 +1061,62 @@ function projectTag(project) {
   return state.locale === "en" ? best.en : best.zh;
 }
 
-function renderSidebar() {
-  const count = state.projects.length;
-  document.getElementById("sidebar-footer").textContent = t("sidebarFooter", { count });
-  document.getElementById("project-list").innerHTML = count
-    ? state.projects.map((project) => {
-        const active = project.tree.task_id === state.selectedProjectId;
+function renderProjectPicker() {
+  const list = document.getElementById("project-list");
+  const content = `<button class="project-item${state.projectView === "all" ? " active" : ""}" type="button" data-project-id="all" ${state.projectView === "all" ? 'aria-current="true"' : ""}><span>${escapeHtml(t("allProjects"))}</span></button>`
+    + state.projects.map((project) => {
+        const active = state.projectView !== "all" && project.tree.task_id === state.selectedProjectId;
         const title = taskTitle(project.tree);
-        return `<button class="project-item${active ? " active" : ""}" type="button" data-project-id="${escapeHtml(project.tree.task_id)}" title="${escapeHtml(title)}" style="--frame:${project.color}"><i class="project-swatch" aria-hidden="true"></i><span>${escapeHtml(title)}</span></button>`;
-      }).join("")
-    : `<div class="empty" style="padding: 8px 12px">${escapeHtml(t("noProjects"))}</div>`;
+        return `<button class="project-item${active ? " active" : ""}" type="button" data-project-id="${escapeHtml(project.tree.task_id)}" ${active ? 'aria-current="true"' : ""} title="${escapeHtml(title)}" style="--frame:${project.color}"><i class="project-swatch" aria-hidden="true"></i><span>${escapeHtml(title)}</span></button>`;
+      }).join("");
+  // Preserve keyboard focus when an unrelated service notification refreshes the page.
+  if (list.innerHTML !== content) {
+    const focusedId = list.contains(document.activeElement) ? document.activeElement.dataset.projectId : null;
+    list.innerHTML = content;
+    if (focusedId) [...list.children].find(button => button.dataset.projectId === focusedId)?.focus({ preventScroll: true });
+  }
+}
+
+function projectSummary(project) {
+  const leaves = collectLeaves(project?.tree);
+  const done = leaves.filter((leaf) => leaf.status === "DONE").length;
+  const percent = leaves.length ? Math.round(done / leaves.length * 100) : 0;
+  const plan = (state.plan || []).filter((item) => item.projectId === project?.tree.task_id);
+  const from = plan[0]?.start;
+  const to = plan.length ? plan.reduce((max, item) => (item.end > max ? item.end : max), plan[0].end) : null;
+  const origin = project?.started_at ? startOfDay(new Date(project.started_at)) : from;
+  const deadline = project?.deadline_days && origin ? addDays(origin, Number(project.deadline_days) - 1) : null;
+  const meta = project
+    ? `<span class="chip">${escapeHtml(projectTag(project))}</span>${from && to ? `<span>${escapeHtml(t("span"))} ${formatDate(from)} - ${formatDate(to)}</span>` : ""}${deadline ? `<span>${escapeHtml(t("deadline"))} ${formatDate(deadline)}</span>` : ""}<span>${escapeHtml(t("overall"))} ${percent}%</span>`
+    : escapeHtml(t("emptyMeta"));
+  return { percent, meta };
+}
+
+function renderOverview() {
+  const all = state.projectView === "all";
+  document.getElementById("projects-overview").hidden = !all;
+  document.getElementById("selected-project").hidden = all;
+  document.getElementById("timeline-card").hidden = all;
+  if (!all) return;
+  const projects = state.projects.filter(project => !state.search || walkNodes(project.tree).some(node => taskTitle(node).toLowerCase().includes(state.search.toLowerCase())));
+  document.getElementById("overview-count").textContent = t("projectCount", { count: projects.length });
+  document.getElementById("overview-list").innerHTML = projects.map(project => {
+    const { percent, meta } = projectSummary(project);
+    return `<button class="card project-head overview-project" type="button" data-project-id="${escapeHtml(project.tree.task_id)}" style="--frame:${project.color}"><span class="overview-copy"><strong>${escapeHtml(taskTitle(project.tree))}</strong><span class="meta">${meta}</span></span><span class="progress-wrap"><span class="progress" aria-hidden="true"><span style="width:${percent}%"></span></span><span class="muted">${percent}%</span></span></button>`;
+  }).join("") || `<div class="card empty">${escapeHtml(t(state.search ? "noMatch" : "emptyTree"))}</div>`;
 }
 
 function renderHeader() {
-  const leaves = collectLeaves(state.tree);
-  const done = leaves.filter((leaf) => leaf.status === "DONE").length;
-  const ratio = leaves.length ? done / leaves.length : 0;
-  const plan = (state.plan || []).filter((item) => item.projectId === state.selectedProjectId);
-  const from = plan[0]?.start;
-  const to = plan.length ? plan.reduce((max, item) => (item.end > max ? item.end : max), plan[0].end) : null;
   const project = state.projects.find((item) => item.tree.task_id === state.selectedProjectId);
-  const origin = project?.started_at ? startOfDay(new Date(project.started_at)) : from;
-  const deadline = state.horizonDays && origin ? addDays(origin, state.horizonDays - 1) : null;
-  const color = state.projects.find((project) => project.tree.task_id === state.selectedProjectId)?.color || "";
+  const { percent, meta } = projectSummary(project);
   const revise = document.getElementById("revise-current");
   revise.hidden = !state.tree;
   revise.textContent = t("revisePlan");
-  const tag = projectTag(state.projects.find((project) => project.tree.task_id === state.selectedProjectId));
-  document.querySelector(".project-head").style.setProperty("--frame", color || "transparent");
+  document.getElementById("selected-project").style.setProperty("--frame", project?.color || "transparent");
   document.getElementById("project-title").textContent = state.tree ? taskTitle(state.tree) : t("noProjectYet");
-  document.getElementById("project-meta").innerHTML = state.tree && from && to
-    ? `<span class="chip">${escapeHtml(tag)}</span><span>${escapeHtml(t("span"))} ${formatDate(from)} - ${formatDate(to)}</span>${deadline ? `<span>${escapeHtml(t("deadline"))} ${formatDate(deadline)}</span>` : ""}<span>${escapeHtml(t("overall"))} ${Math.round(ratio * 100)}%</span>`
-    : escapeHtml(state.tree ? tag : t("emptyMeta"));
-  document.getElementById("progress-bar").style.width = `${Math.round(ratio * 100)}%`;
-  document.getElementById("progress-label").textContent = `${Math.round(ratio * 100)}%`;
+  document.getElementById("project-meta").innerHTML = meta;
+  document.getElementById("progress-bar").style.width = `${percent}%`;
+  document.getElementById("progress-label").textContent = `${percent}%`;
 }
 
 function renderCalendar() {
@@ -1295,6 +1322,7 @@ async function moveTreeNode(taskId, direction) {
 }
 
 function renderBoard() {
+  renderOverview();
   const board = document.getElementById("board");
   const content = document.querySelector(".content");
   const scrollLeft = board.scrollLeft;
@@ -1323,7 +1351,7 @@ function renderAll() {
   if (!state.focus) state.focus = startOfDay(new Date());
   state.plan = scheduleProjects(state.projects);
   ensureSelection();
-  renderSidebar();
+  renderProjectPicker();
   renderHeader();
   const source = document.getElementById("project-source");
   const selected = state.projects.find((project) => project.tree.task_id === state.selectedProjectId);
@@ -1370,6 +1398,7 @@ function ingestProjects(list, preferredId) {
     color: PROJECT_COLORS[index % PROJECT_COLORS.length],
   }));
   const chosen = state.projects.find((item) => item.tree.task_id === preferredId)
+    || state.projects.find((item) => item.tree.task_id === state.projectView)
     || state.projects[state.projects.length - 1]
     || null;
   selectProject(chosen ? chosen.tree.task_id : null);
@@ -1624,6 +1653,7 @@ async function commitDraft() {
     [modal, scheduleModal, document.getElementById("grain-modal"), document.getElementById("focus-modal"), document.getElementById("grain-suggest-modal")].forEach((element) => element.classList.remove("open"));
     showToast(t("draftConfirmed"));
     await pullSharedDesk();
+    if (draft.context.kind === "plan" && result.tree?.task_id) setProjectView(result.tree.task_id);
     await fetchTree(true, result.tree?.task_id || state.selectedProjectId);
     if (draft.context.entry && state.monitor) openDayGrain();
   } catch (error) {
@@ -1649,7 +1679,7 @@ function openPlanModal(mode, taskId) {
   initButton.dataset.i18n = revising ? "resplit" : "generateTimeline";
   if (revising) {
     selectProject(taskId);
-    renderSidebar();
+    renderProjectPicker();
     const project = state.projects.find((item) => item.tree.task_id === taskId);
     document.getElementById("goal").value = project ? taskTitle(project.tree) : "";
     document.getElementById("persona").value = project?.persona || state.persona || "balanced";
@@ -1703,14 +1733,88 @@ document.querySelectorAll("[data-lang]").forEach((button) => {
   button.addEventListener("click", () => setLocale(button.dataset.lang));
 });
 document.getElementById("open-modal").addEventListener("click", () => openPlanModal("new"));
-document.getElementById("open-modal-secondary").addEventListener("click", () => openPlanModal("new"));
-document.getElementById("project-list").addEventListener("click", (event) => {
+const projectPicker = document.getElementById("project-picker");
+const projectsButton = document.getElementById("open-projects");
+let pickerCloseTimer;
+function positionProjectPicker() {
+  const rect = projectsButton.getBoundingClientRect();
+  const width = Math.min(360, window.innerWidth - 24);
+  projectPicker.style.width = `${width}px`;
+  projectPicker.style.left = `${Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))}px`;
+  const below = window.innerHeight - rect.bottom - 18;
+  const above = rect.top - 18;
+  const upwards = below < 180 && above > below;
+  const height = Math.max(0, upwards ? above : below);
+  projectPicker.style.maxHeight = `${height}px`;
+  projectPicker.style.top = `${upwards ? Math.max(12, rect.top - Math.min(projectPicker.scrollHeight || 320, height) - 6) : rect.bottom + 6}px`;
+}
+function openProjectPicker() {
+  clearTimeout(pickerCloseTimer);
+  positionProjectPicker();
+  projectPicker.showPopover();
+  positionProjectPicker();
+}
+function closeProjectPicker() {
+  clearTimeout(pickerCloseTimer);
+  projectPicker.hidePopover();
+}
+projectPicker.addEventListener("beforetoggle", event => {
+  if (event.newState === "open") positionProjectPicker();
+  projectsButton.setAttribute("aria-expanded", String(event.newState === "open"));
+});
+projectsButton.addEventListener("click", event => { event.preventDefault(); openProjectPicker(); });
+projectsButton.addEventListener("pointerenter", event => {
+  if (event.pointerType === "mouse") openProjectPicker();
+});
+for (const element of [projectsButton, projectPicker]) {
+  element.addEventListener("pointerenter", () => clearTimeout(pickerCloseTimer));
+  element.addEventListener("pointerleave", () => {
+    pickerCloseTimer = window.setTimeout(() => {
+      if (!projectPicker.contains(document.activeElement) && document.activeElement !== projectsButton) closeProjectPicker();
+    }, 180);
+  });
+}
+projectsButton.addEventListener("keydown", event => {
+  if (event.key !== "ArrowDown") return;
+  event.preventDefault();
+  openProjectPicker();
+  projectPicker.querySelector("button")?.focus();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && projectPicker.matches(":popover-open")) {
+    closeProjectPicker();
+    projectsButton.focus();
+  }
+});
+document.addEventListener("focusin", event => {
+  if (event.target !== projectsButton && !projectPicker.contains(event.target)) closeProjectPicker();
+});
+window.addEventListener("resize", () => { if (projectPicker.matches(":popover-open")) positionProjectPicker(); });
+document.querySelector(".content").addEventListener("scroll", event => {
+  if (!projectPicker.matches(":popover-open")) return;
+  const trigger = projectsButton.getBoundingClientRect();
+  const viewport = event.target.getBoundingClientRect();
+  if (trigger.bottom < viewport.top || trigger.top > viewport.bottom) closeProjectPicker();
+  else positionProjectPicker();
+}, { passive: true });
+function setProjectView(projectId) {
+  state.projectView = projectId;
+  window.localStorage.setItem("focusflow.projectView", projectId);
+  if (projectId !== "all") selectProject(projectId);
+}
+function navigateProject(event) {
   const button = event.target.closest("[data-project-id]");
   if (!button) return;
-  selectProject(button.dataset.projectId);
+  setProjectView(button.dataset.projectId);
+  closeProjectPicker();
   renderAll();
-  document.querySelector(".project-head").scrollIntoView({ block: "start" });
-});
+  const target = document.getElementById(state.projectView === "all" ? "projects-overview" : "selected-project");
+  target.tabIndex = -1;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ block: "nearest" });
+}
+document.getElementById("project-list").addEventListener("click", navigateProject);
+document.getElementById("overview-list").addEventListener("click", navigateProject);
 document.getElementById("revise-current").addEventListener("click", () => {
   if (!state.selectedProjectId) return;
   openPlanModal("revise", state.selectedProjectId);
@@ -2284,9 +2388,6 @@ document.getElementById("calendar-panel").addEventListener("toggle", event => {
   if (event.target.open) renderCalendar();
 });
 
-document.querySelector('[data-nav="tree"]').addEventListener("click", () => {
-  document.getElementById("timeline-card").scrollIntoView({ block: "start" });
-});
 document.getElementById("search").addEventListener("input", (event) => {
   state.search = event.target.value;
   state.searchDisclosure = {};

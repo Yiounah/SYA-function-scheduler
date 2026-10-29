@@ -5,7 +5,7 @@
   --bg: var(--sya-wash); --surface: #fff; --ink: var(--sya-ink); --muted: var(--sya-soft);
   --line: var(--sya-line); --primary: var(--sya-blue); --primary-strong: #5153c4;
   --primary-soft: #f0f0fc; --primary-line: #c5c6f2; --module: #5aa779;
-  --shadow: 0 8px 28px #1b35590d; --sidebar: 210px;
+  --shadow: 0 8px 28px #1b35590d;
  }
 
 * { box-sizing: border-box; }
@@ -15,21 +15,12 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); height: 100%; padding: 16px; }
-
-.sidebar { background: var(--surface); border: 1px solid var(--line); border-radius: 20px 0 0 20px; padding: 24px 14px 16px; display: flex; flex-direction: column; gap: 24px; min-width: 0; overflow: auto; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr); height: 100%; padding: 16px; }
 
 .new-plan { width: 100%; border: 0; border-radius: 10px; padding: 10px 14px; background: var(--primary); color: #fff; font-weight: 600; }
 
-.nav-label, .section-label {
-  margin: 0 0 8px;
-  padding: 0 8px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.nav-list, .project-list { display: grid; gap: 4px; min-width: 0; max-width: 100%; }
-.nav-item, .project-item {
+.project-list { display: grid; gap: 4px; min-width: 0; }
+.project-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -44,18 +35,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   padding: 10px 12px;
   text-align: left;
 }
-.nav-item.active {
-  background: var(--primary-soft);
-  color: var(--primary-strong);
-  font-weight: 600;
-}
 .project-item.active {
   background: color-mix(in srgb, var(--frame, var(--primary)) 16%, white);
   color: var(--ink);
   font-weight: 600;
 }
-.project-item span,
-.nav-item {
+.project-item span {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -80,14 +65,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   text-align: left;
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  padding: 10px 12px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; border: 1px solid var(--line); border-left: 0; border-radius: 0 20px 20px 0; overflow: hidden; background: var(--surface); }
+.workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: var(--surface); }
 
 .topbar { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 14px; min-height: 76px; padding: 12px 22px; border-top: 4px solid var(--module); border-bottom: 1px solid var(--line); }
 
@@ -443,11 +421,6 @@ input.conflict {
 }
 
 @media (max-width: 980px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
-  .sidebar { padding: 0; border: 0; border-radius: 0; background: none; }
-  .sidebar > :not(.new-plan) { display: none; }
-  .sidebar .new-plan { width: auto; align-self: flex-start; }
-  .workspace { border-left: 1px solid var(--line); border-radius: 16px; }
   .content { padding: 16px; }
   .task-tree-board { grid-auto-columns: minmax(300px, 1fr); }
 }
@@ -513,3 +486,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 600px) { .form-grid, .routine-basics, .target-duration, .before-after { grid-template-columns: 1fr; } .impact-metrics { grid-template-columns: 1fr; } .topbar-actions { gap: 6px; } .search { display: none; } .content { padding: 14px; } }
 
 @media (max-width: 600px) { .calendar-panel > summary, .calendar-content { padding: 14px; } .calendar-summary-copy > span { font-size: 11px; } .workspace-intro h1 { font-size: 28px; } }
+
+/* One planner surface in both the standalone app and the SYA task module. */
+.planner-intro { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; }
+.workspace-intro { min-width: 0; }
+.intro-actions { display: flex; flex-direction: column; gap: 10px; flex: 0 0 160px; }
+.intro-actions > button { min-height: 44px; border-radius: 12px; padding: 10px 16px; font-weight: 600; }
+.projects-button { display: flex; justify-content: center; align-items: center; gap: 12px; border: 1px solid var(--primary-line); background: var(--primary-soft); color: var(--primary-strong); }
+.projects-button:hover, .projects-button[aria-expanded="true"] { background: #e5e5fb; }
+.project-picker { position: fixed; inset: auto; margin: 0; padding: 8px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--surface); box-shadow: 0 14px 40px #1b355924; overflow-y: auto; }
+.project-item:hover { background: var(--primary-soft); }
+.project-item span { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.project-item:first-child { border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; }
+.overview-list { display: grid; gap: 14px; }
+.overview-project { width: 100%; text-align: left; color: var(--ink); }
+.overview-project:hover { border-color: var(--frame); box-shadow: var(--shadow); }
+.overview-copy { display: grid; gap: 12px; min-width: 0; }
+.overview-copy > strong { font-size: 22px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.overview-project .progress { display: block; }
+#selected-project:focus-visible, #projects-overview:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 16px; }
+@media (max-width: 760px) {
+  .planner-intro { flex-wrap: wrap; gap: 12px; }
+  .intro-actions { flex-basis: 100%; align-items: flex-end; }
+  .intro-actions > button { width: 160px; }
+}
