@@ -27,6 +27,11 @@
       <section class="workspace">
         <header class="topbar">
           <div class="brand" data-i18n="brand">任务规划</div>
+          <div class="planning-tools" role="group" data-i18n-aria="rhythmSettings">
+            <span class="tools-label" data-i18n="rhythmSettings">节奏设置</span>
+            <button class="schedule-button" id="open-schedule" type="button">作息安排</button>
+            <button class="schedule-button" id="open-day-grain" type="button">任务粒度</button>
+          </div>
           <div class="topbar-actions">
             <input class="search" id="search" type="search" data-i18n-placeholder="searchPlaceholder" data-i18n-aria="searchAria" placeholder="搜索任务..." aria-label="搜索任务" />
             <div class="lang-toggle" id="lang-toggle" role="group" aria-label="语言 / Language">
@@ -53,12 +58,6 @@
               <div class="muted" id="progress-label">0%</div>
             </div>
           </section>
-
-          <div class="planning-tools" role="group" data-i18n-aria="rhythmSettings">
-            <span class="tools-label" data-i18n="rhythmSettings">节奏设置</span>
-            <button class="schedule-button" id="open-schedule" type="button">作息安排</button>
-            <button class="schedule-button" id="open-day-grain" type="button">任务粒度</button>
-          </div>
 
           <section class="card" id="timeline-card" aria-labelledby="tree-title">
             <div class="card-head">

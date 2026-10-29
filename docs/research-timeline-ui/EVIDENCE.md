@@ -1,5 +1,12 @@
 # Delivery evidence
 
+## 2026-10-29: Rhythm controls in the top bar
+
+- Moved the existing rhythm label and buttons between the planner title and search. Kept their IDs, handlers and existing dialogs. The header can wrap and grow; no JS, HTTP, IPC or scheduling logic changed. Wide and narrow desktop screenshots were inspected.
+- Service regression: 71 tests and shell syntax checks passed. Standalone Electron initially passed 25 checks, then timed out reopening the routine suggestion preview (`_bmad-output/planner-electron/2026-10-29T06-04-46-325Z`). Cleanup reported a quit-context error but left no processes.
+- Repeated the original assertions with extra diagnostic logging only: all 27 checks passed (`_bmad-output/planner-electron/2026-10-29T06-06-35-033Z/result.json`), with no renderer errors or remaining processes. No product logic or assertion was weakened; the intermittent first-run timeout was not reproduced or claimed fixed.
+- After renderer/main/preload compilation, all 8 host Electron journeys passed, including real Focus handoff and quit/relaunch. Host evidence is `_bmad-output/scheduler-task-tree/report.json`. Both suites use isolated profiles; only the standalone external model HTTP boundary is substituted. This is source-app evidence, not a packaged release or a live-model test.
+
 ## 2026-10-29 后续：统一日周月行动日历
 
 - 日、周、月持续复用主库 `ScheduleCalendar` 头部；通过原生 slot 放入原周报横条/月历网格，删除独立周/月标题、导航和日期算术。标题为每日行动日历、每周行动周报、每月行动月历，复用 `calendarRange` 过滤计数和 `adjacentDate` 翻页；月末取目标月最后一天。
