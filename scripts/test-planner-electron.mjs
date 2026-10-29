@@ -319,6 +319,34 @@ try {
     assert.equal((await projects()).length, 1);
     await screenshot(`02-view-${nav}`);
   }
+  // One shared header survives all modes; date navigation uses calendar units.
+  const calendarRoot = await page.locator('#sya-action-calendar').elementHandle();
+  const dateInput = page.locator('#sya-action-calendar').getByLabel('日历日期');
+  for (const [label,title,start,next,period] of [
+    ['日','每日行动日历','2026-11-30','2026-12-01',null],
+    ['周','每周行动周报','2026-11-30','2026-12-07','2026-12-07 – 2026-12-13'],
+    ['月','每月行动月历','2026-11-30','2026-12-30','2026-12'],
+  ]) {
+    await page.locator('#sya-action-calendar').getByRole('button',{name:label,exact:true}).click();
+    await expect(page.locator('#sya-action-calendar').getByRole('heading',{name:title,exact:true})).toBeVisible();
+    await expect(page.locator('#sya-action-calendar').getByRole('button',{name:label,exact:true})).toHaveAttribute('aria-pressed','true');
+    assert.equal(await calendarRoot.evaluate(node=>node===document.getElementById('sya-action-calendar')),true);
+    await dateInput.fill(start);
+    await page.locator('#sya-action-calendar').getByRole('button',{name:'下一个日期区间'}).click();
+    await expect(dateInput).toHaveValue(next);
+    if(period)await expect(page.locator('#sya-action-calendar').getByLabel('当前日期区间')).toHaveText(period);
+    await page.locator('#sya-action-calendar').getByRole('button',{name:'上一个日期区间'}).click();
+    await expect(dateInput).toHaveValue(start);
+  }
+  for(const [start,next] of [['2026-01-31','2026-02-28'],['2028-01-31','2028-02-29'],['2026-12-31','2027-01-31']]) {
+    await dateInput.fill(start);
+    await page.locator('#sya-action-calendar').getByRole('button',{name:'下一个日期区间'}).click();
+    await expect(dateInput).toHaveValue(next);
+    await expect(page.locator(`#calendar-visualization [data-day="${next}"]`)).toBeVisible();
+  }
+  await page.locator('#sya-action-calendar').getByRole('button',{name:'今天',exact:true}).click();
+  await calendarRoot.dispose();
+  await record('One shared calendar header keeps correct day/week/month titles, navigation, month ends and year boundaries');
   await page.locator('.sidebar [data-nav="timeline"]').click();
   const weekStage = page.locator('#calendar-board .bar[data-milestone-id]').first();
   const linkedStage = await weekStage.getAttribute('data-milestone-id');
@@ -384,11 +412,11 @@ try {
   await page.locator('#calendar-panel > summary').click();
   await expect(page.locator('#sya-action-calendar')).toBeVisible();
   await page.locator('#sya-action-calendar').getByRole('button', {name: '周', exact: true}).click();
-  await expect(page.locator('#calendar-board.week-board')).toBeVisible();
+  await expect(page.locator('#calendar-visualization.week-board')).toBeVisible();
   await expect(page.locator('#board.task-tree-board')).toBeVisible();
-  await page.locator('#calendar-panel [data-nav="calendar"]').click();
-  await expect(page.locator('#calendar-board.month-grid')).toBeVisible();
-  await page.locator('#calendar-panel [data-nav="day"]').click();
+  await page.locator('#sya-action-calendar').getByRole('button', {name:'月',exact:true}).click();
+  await expect(page.locator('#calendar-visualization.month-grid')).toBeVisible();
+  await page.locator('#sya-action-calendar').getByRole('button', {name:'日',exact:true}).click();
   await page.locator('#calendar-panel > summary').click();
   await page.locator('.workspace-intro').scrollIntoViewIfNeeded();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 1020));
@@ -592,10 +620,10 @@ try {
   await screenshot('08-action-calendar-postponed');
   await closeSuggestions();
   await calendar().getByRole('button',{name:'周',exact:true}).click();
-  await expect(page.locator('#board-title')).toHaveText('研究周报');
-  await expect(page.locator('#calendar-board.week-board .bar')).not.toHaveCount(0);
+  await expect(calendar().getByRole('heading',{name:'每周行动周报',exact:true})).toBeVisible();
+  await expect(page.locator('#calendar-visualization.week-board .bar')).not.toHaveCount(0);
   await page.locator('[data-nav="calendar"]:visible').first().click();
-  await expect(page.locator('#board-title')).toHaveText('研究月历');
+  await expect(calendar().getByRole('heading',{name:'每月行动月历',exact:true})).toBeVisible();
   await expect(page.locator(`[data-day="${postponedDate}"]`)).toHaveClass(/has-ms/);
   const postponedTimeline=await api(`/api/scheduler/timeline?from=${postponedDate}&to=${postponedDate}&view=day&projectId=all`);
   assert(postponedTimeline.events.some(event=>event.taskId===postponedTaskId&&event.startTime.startsWith(postponedDate)));

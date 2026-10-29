@@ -1,5 +1,14 @@
 # Delivery evidence
 
+## 2026-10-29 后续：统一日周月行动日历
+
+- 日、周、月持续复用主库 `ScheduleCalendar` 头部；通过原生 slot 放入原周报横条/月历网格，删除独立周/月标题、导航和日期算术。标题为每日行动日历、每周行动周报、每月行动月历，复用 `calendarRange` 过滤计数和 `adjacentDate` 翻页；月末取目标月最后一天。
+- `SYA_OPENAI_API_KEY='' npm test`：71 项服务回归及桌面脚本语法检查通过。主仓库日期脚本在上海和纽约两时区共 60 项断言通过，覆盖日/周/月、月末、闰年、跨年和夏令时。
+- 独立原生套件 **27/27** 通过：新增单一头部持续挂载、标题与选中视图一致、前后翻页、当前周/月区间、1 月 31 日及闰年 2 月处理；原有折叠、排序、延期、粒度、作息及真退出重启保持通过。
+- 证据为 `_bmad-output/planner-electron/2026-10-29T04-27-14-221Z/result.json`，`pageErrors=[]`、`cleanup.survivors=[]`。运行时文件和来源清单哈希与最终源码一致；主库来源文件与共享资源也已逐项核对。月历按钮使用现有浅色边框，避免原生默认黑框。
+- SYA-UI 编译后的真实桌面套件 7 组通过，覆盖主工作区与嵌入界面的日期导航、延期、Focus 交接与退出恢复；记录见主仓库对接说明。本轮只改变 UI 与共享日期模型，没有服务合同变化。
+- 原生 slot 参考 [MDN slot](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/slot)；月末行为参考 [MDN setMonth](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/setMonth)，先定位目标月首日再限制日号，避免月底溢出跳月。
+
 ## 2026-10-29：任务树主区与辅助日历布局
 
 - 保留完整标题区；任务树始终显示，日历改为下方原生 `details/summary` 辅助区域，作息和粒度按钮移入次要设置行。使用既有树、共享行动日历和调整弹窗，没有新增 UI 依赖或 HTTP 合同。

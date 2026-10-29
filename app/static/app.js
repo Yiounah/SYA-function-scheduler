@@ -41,8 +41,8 @@ const COPY = {
     "span": "周期",
     "overall": "整体进度",
     "boardDay": "每日行动日历",
-    "boardTimeline": "研究周报",
-    "boardCalendar": "研究月历",
+    "boardTimeline": "每周行动周报",
+    "boardCalendar": "每月行动月历",
     "today": "今天",
     "emptyDay": "这一天没有安排。",
     "emptyWeek": "这一周没有落在日历上的阶段。",
@@ -207,7 +207,7 @@ const COPY = {
     "workspaceEyebrow": "SCHEDULE · 任务规划",
     "rhythmSettings": "节奏设置",
     "actionAndReview": "行动与回顾",
-    "calendarSupportHint": "每日行动日历 · 研究周报 · 研究月历",
+    "calendarSupportHint": "每日行动日历 · 每周行动周报 · 每月行动月历",
     "calendarViews": "日历视图",
     "workRestCycle": "专注与休息",
     "focusMinutes": "连续专注（分钟）",
@@ -285,8 +285,8 @@ const COPY = {
     "span": "Span",
     "overall": "Overall",
     "boardDay": "Daily action calendar",
-    "boardTimeline": "Weekly report",
-    "boardCalendar": "Research calendar",
+    "boardTimeline": "Weekly action report",
+    "boardCalendar": "Monthly action calendar",
     "today": "Today",
     "emptyDay": "Nothing is scheduled on this day.",
     "emptyWeek": "No stage falls on this week.",
@@ -1127,24 +1127,34 @@ function renderHeader() {
   document.getElementById("progress-label").textContent = `${Math.round(ratio * 100)}%`;
 }
 
-function renderDay(plan) {
+function renderCalendar() {
+  const plan = state.plan || [];
+  const view = { day: "day", timeline: "week", calendar: "month" }[state.calendarView];
   const board = document.getElementById("calendar-board");
   board.className = "day-agenda";
   let mount = document.getElementById("sya-action-calendar");
   if (!mount) {
     mount = document.createElement("div");
     mount.id = "sya-action-calendar";
+    const content = document.createElement("div");
+    content.id = "calendar-visualization";
+    content.slot = "calendar-content";
+    mount.append(content);
     board.replaceChildren(mount);
   }
+  const content = document.getElementById("calendar-visualization");
+  content.hidden = view === "day";
+  if (view === "week") renderTimeline(plan, content);
+  if (view === "month") renderMonth(plan, content);
   const date = ymd(state.focus);
   const matching = new Set(plan.filter(item => matchesSearch(item.node) || matchesSearch(item.stage) || matchesSearch(item.subtask)).map(item => item.node.task_id));
   // Render the host's actual ScheduleCalendar + TaskEditor, not a parallel calendar.
   window.SyaSchedulerCalendar.render(mount, {
     tasks: state.calendarTasks.filter(task => matching.has(task.id)),
-    events: state.slots.filter(slot => slot.date === date || slot.startTime?.slice(0, 10) === date),
-    breaks: state.breaks.filter(slot => slot.date === date),
-    date, loaded: true, busy: state.pendingStatus.size > 0,
-    title: state.locale === "en" ? "Daily action calendar" : "每日行动日历",
+    events: state.slots,
+    breaks: state.breaks,
+    date, view, contentSlot: view !== "day", loaded: true, busy: state.pendingStatus.size > 0,
+    title: t(view === "day" ? "boardDay" : view === "week" ? "boardTimeline" : "boardCalendar"),
     onDate: value => { state.focus = parseYmd(value); renderAll(); },
     onView: view => setNav({ day: "day", week: "timeline", month: "calendar" }[view]),
     onSaveTask: task => saveCalendarTask(task.id, {
@@ -1167,8 +1177,7 @@ async function saveCalendarTask(taskId, patch) {
   if (await fetchTree(true) === false) throw new Error(t("syncFailed"));
 }
 
-function renderTimeline(plan) {
-  const board = document.getElementById("calendar-board");
+function renderTimeline(plan, board) {
   const weekStart = mondayOf(state.focus);
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const weekEnd = days[6];
@@ -1204,8 +1213,7 @@ function renderTimeline(plan) {
   `;
 }
 
-function renderMonth(plan) {
-  const board = document.getElementById("calendar-board");
+function renderMonth(plan, board) {
   const year = state.focus.getFullYear();
   const month = state.focus.getMonth();
   const first = new Date(year, month, 1);
@@ -1408,36 +1416,6 @@ function renderBoard() {
     target?.focus({ preventScroll: true });
   }
 }
-
-function renderCalendar() {
-  const view = state.calendarView;
-  const calendar = document.getElementById("sya-action-calendar");
-  if (view !== "day" && calendar) window.SyaSchedulerCalendar.unmount(calendar);
-  // The reused daily calendar owns its heading and date controls.
-  document.querySelector(".calendar-navigation").hidden = view === "day";
-  document.getElementById("calendar-heading").hidden = view === "day";
-  document.getElementById("calendar-note").hidden = view === "day";
-  const plan = state.plan || [];
-  const focus = state.focus;
-  const rangeStart = view === "timeline" ? mondayOf(focus) : view === "calendar" ? new Date(focus.getFullYear(), focus.getMonth(), 1) : focus;
-  const rangeEnd = view === "timeline" ? addDays(rangeStart, 6) : view === "calendar" ? new Date(focus.getFullYear(), focus.getMonth() + 1, 0) : focus;
-  const breaks = state.breaks.filter((slot) => slot.date >= ymd(rangeStart) && slot.date <= ymd(rangeEnd));
-  document.getElementById("calendar-note").textContent = breaks.length ? t("breakCount", { count: breaks.length, minutes: breaks.reduce((sum, slot) => sum + minutesFromClock(slot.end) - minutesFromClock(slot.start), 0) }) : "";
-  document.getElementById("board-title").textContent = t(view === "day" ? "boardDay" : view === "calendar" ? "boardCalendar" : "boardTimeline");
-  document.getElementById("cal-prev").setAttribute("aria-label", t("prevPeriod"));
-  document.getElementById("cal-next").setAttribute("aria-label", t("nextPeriod"));
-  if (view === "day") {
-    renderDay(plan);
-  } else if (view === "calendar") {
-    document.getElementById("range-label").textContent = new Intl.DateTimeFormat(localeTag(), { year: "numeric", month: "long" }).format(focus);
-    renderMonth(plan);
-  } else {
-    const start = mondayOf(focus);
-    document.getElementById("range-label").textContent = `${formatDate(start)} - ${formatDate(addDays(start, 6))}`;
-    renderTimeline(plan);
-  }
-}
-
 
 function renderScheduleButton() {
   const button = document.getElementById("open-schedule");
@@ -2438,29 +2416,8 @@ document.getElementById("calendar-panel").addEventListener("toggle", event => {
   updateNavigation();
 });
 
-function shiftFocus(direction) {
-  const focus = state.focus;
-  if (state.calendarView === "calendar") {
-    const next = new Date(focus.getFullYear(), focus.getMonth() + direction, 1);
-    const last = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-    next.setDate(Math.min(focus.getDate(), last));
-    state.focus = next;
-  } else if (state.calendarView === "timeline") {
-    state.focus = addDays(focus, 7 * direction);
-  } else {
-    state.focus = addDays(focus, direction);
-  }
-  renderAll();
-}
-
 document.querySelectorAll("[data-nav]").forEach((button) => {
   button.addEventListener("click", () => setNav(button.dataset.nav));
-});
-document.getElementById("cal-prev").addEventListener("click", () => shiftFocus(-1));
-document.getElementById("cal-next").addEventListener("click", () => shiftFocus(1));
-document.getElementById("cal-today").addEventListener("click", () => {
-  state.focus = startOfDay(new Date());
-  renderAll();
 });
 document.getElementById("search").addEventListener("input", (event) => {
   state.search = event.target.value;
