@@ -504,7 +504,6 @@ const state = {
   tree: null,
   ws: null,
   inflight: false,
-  nav: "tree",
   calendarView: "day",
   treeDisclosure: loadTreeDisclosure(),
   treeDisclosureDirty: false,
@@ -702,10 +701,6 @@ function setDecomposing(active) {
 
 function formatDate(date) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function shortDate(date) {
-  return `${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function collectLeaves(node) {
@@ -928,11 +923,6 @@ function parseYmd(value) {
   return new Date(year, month - 1, day);
 }
 
-function mondayOf(date) {
-  const day = startOfDay(date);
-  return addDays(day, -((day.getDay() + 6) % 7));
-}
-
 function clock(minutes) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -941,11 +931,6 @@ function clock(minutes) {
 
 function localeTag() {
   return state.locale === "en" ? "en-US" : "zh-CN";
-}
-
-function weekdayLabels() {
-  const names = t("weekdays");
-  return [...names.slice(1), names[0]];
 }
 
 function collectWork(root) {
@@ -996,26 +981,6 @@ function scheduleProjects(projects) {
         slots, start: slots[0].date, end: slots[slots.length - 1].date };
     }).filter(Boolean)
   );
-}
-
-function stagesInOrder(plan) {
-  const seen = new Set();
-  const stages = [];
-  plan.forEach((item) => {
-    if (seen.has(item.stage.task_id)) return;
-    seen.add(item.stage.task_id);
-    stages.push(item.stage);
-  });
-  return stages;
-}
-
-function stageSpan(plan, stageId) {
-  const items = plan.filter((item) => item.stage.task_id === stageId);
-  if (!items.length) return null;
-  return {
-    start: items.reduce((min, item) => (item.start < min ? item.start : min), items[0].start),
-    end: items.reduce((max, item) => (item.end > max ? item.end : max), items[0].end),
-  };
 }
 
 function subtasksOf(milestone) {
@@ -1129,23 +1094,15 @@ function renderHeader() {
 
 function renderCalendar() {
   const plan = state.plan || [];
-  const view = { day: "day", timeline: "week", calendar: "month" }[state.calendarView];
+  const view = state.calendarView;
   const board = document.getElementById("calendar-board");
   board.className = "day-agenda";
   let mount = document.getElementById("sya-action-calendar");
   if (!mount) {
     mount = document.createElement("div");
     mount.id = "sya-action-calendar";
-    const content = document.createElement("div");
-    content.id = "calendar-visualization";
-    content.slot = "calendar-content";
-    mount.append(content);
     board.replaceChildren(mount);
   }
-  const content = document.getElementById("calendar-visualization");
-  content.hidden = view === "day";
-  if (view === "week") renderTimeline(plan, content);
-  if (view === "month") renderMonth(plan, content);
   const date = ymd(state.focus);
   const matching = new Set(plan.filter(item => matchesSearch(item.node) || matchesSearch(item.stage) || matchesSearch(item.subtask)).map(item => item.node.task_id));
   // Render the host's actual ScheduleCalendar + TaskEditor, not a parallel calendar.
@@ -1153,10 +1110,10 @@ function renderCalendar() {
     tasks: state.calendarTasks.filter(task => matching.has(task.id)),
     events: state.slots,
     breaks: state.breaks,
-    date, view, contentSlot: view !== "day", loaded: true, busy: state.pendingStatus.size > 0,
+    date, view, loaded: true, busy: state.pendingStatus.size > 0,
     title: t(view === "day" ? "boardDay" : view === "week" ? "boardTimeline" : "boardCalendar"),
     onDate: value => { state.focus = parseYmd(value); renderAll(); },
-    onView: view => setNav({ day: "day", week: "timeline", month: "calendar" }[view]),
+    onView: view => { state.calendarView = view; renderCalendar(); },
     onSaveTask: task => saveCalendarTask(task.id, {
       title: task.title.trim(), description: task.description, deadline: task.deadline,
       scheduledDate: task.scheduledDate ?? null,
@@ -1175,68 +1132,6 @@ async function saveCalendarTask(taskId, patch) {
   await requestJson(`/api/scheduler/tasks/${encodeURIComponent(taskId)}`, { method: "PUT", body: JSON.stringify(patch) });
   if (patch.status === "completed") noteActualWork(taskId, "DONE");
   if (await fetchTree(true) === false) throw new Error(t("syncFailed"));
-}
-
-function renderTimeline(plan, board) {
-  const weekStart = mondayOf(state.focus);
-  const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-  const weekEnd = days[6];
-  const rows = stagesInOrder(plan).map((stage) => ({ stage, span: stageSpan(plan, stage.task_id) }))
-    .filter(({ stage, span }) => span && span.end >= weekStart && span.start <= weekEnd
-      && plan.some((item) => item.stage.task_id === stage.task_id
-        && (matchesSearch(item.node) || matchesSearch(item.stage) || matchesSearch(item.subtask))));
-  const head = days.map((date) => `<span class="${sameDay(date, startOfDay(new Date())) ? "today" : ""}">${escapeHtml(weekdayLabels()[(date.getDay() + 6) % 7])} ${date.getDate()}</span>`).join("");
-  board.className = "week-board";
-  board.innerHTML = `
-    <div class="week-head"><span></span><div class="week-days">${head}</div></div>
-    ${rows.length ? rows.map(({ stage, span }) => {
-      const from = span.start < weekStart ? weekStart : span.start;
-      const to = span.end > weekEnd ? weekEnd : span.end;
-      const startCol = Math.round((startOfDay(from) - weekStart) / 86400000);
-      const endCol = Math.round((startOfDay(to) - weekStart) / 86400000);
-      const kind = nodeKind(stage);
-      const owner = plan.find((item) => item.stage.task_id === stage.task_id);
-      const color = owner?.color || "#3b82f6";
-      const range = sameDay(span.start, span.end) ? shortDate(span.start) : `${shortDate(span.start)}–${shortDate(span.end)}`;
-      const fullRange = `${taskTitle(stage)} · ${formatDate(span.start)}–${formatDate(span.end)}`;
-      const cells = days.map((date) => `<i class="${sameDay(date, startOfDay(new Date())) ? "today" : ""}"></i>`).join("");
-    return `
-        <div class="week-row" style="--frame:${color}">
-          <button class="stage-name ${kind}" type="button" data-project-id="${escapeHtml(owner?.projectId || "")}" data-milestone-id="${escapeHtml(stage.task_id)}">${escapeHtml(taskTitle(stage))}</button>
-          <div class="week-track">
-            ${cells}
-            <button class="bar ${kind}" type="button" title="${escapeHtml(fullRange)}" aria-label="${escapeHtml(fullRange)}" data-project-id="${escapeHtml(owner?.projectId || "")}" data-milestone-id="${escapeHtml(stage.task_id)}" style="--frame:${color};left:${(startCol / 7) * 100}%;width:${((endCol - startCol + 1) / 7) * 100}%">${escapeHtml(range)}</button>
-          </div>
-        </div>
-      `;
-    }).join("") : `<div class="empty">${escapeHtml(state.projects.length ? t("emptyWeek") : t("emptyBoard"))}</div>`}
-  `;
-}
-
-function renderMonth(plan, board) {
-  const year = state.focus.getFullYear();
-  const month = state.focus.getMonth();
-  const first = new Date(year, month, 1);
-  const startPad = (first.getDay() + 6) % 7;
-  const days = new Date(year, month + 1, 0).getDate();
-  const today = startOfDay(new Date());
-  const cells = [];
-  for (let index = 0; index < startPad; index += 1) cells.push(`<div class="day empty"></div>`);
-  for (let day = 1; day <= days; day += 1) {
-    const date = new Date(year, month, day);
-    const marks = [];
-    plan.forEach((item) => {
-      if (!matchesSearch(item.node) && !matchesSearch(item.stage) && !matchesSearch(item.subtask)) return;
-      if (!item.slots.some((slot) => sameDay(slot.date, date))) return;
-      if (marks.some((mark) => mark.id === item.node.task_id)) return;
-      marks.push({ id: item.node.task_id, title: taskTitle(item.node), color: item.color, projectId: item.projectId, stageId: item.stage.task_id });
-    });
-    const preview = marks.slice(0, 2).map((mark) => `<small class="month-chip" data-project-id="${escapeHtml(mark.projectId)}" data-milestone-id="${escapeHtml(mark.stageId)}" style="--frame:${mark.color}">${escapeHtml(mark.title)}</small>`).join("");
-    const extra = marks.length > 2 ? `<small>+${marks.length - 2}</small>` : "";
-    cells.push(`<button class="day${marks.length ? " has-ms" : ""}${sameDay(date, today) ? " today" : ""}" data-day="${ymd(date)}" type="button">${day}${preview}${extra}</button>`);
-  }
-  board.className = "month-grid";
-  board.innerHTML = weekdayLabels().map((name) => `<div class="dow">${escapeHtml(name)}</div>`).join("") + cells.join("");
 }
 
 function loadTreeDisclosure() {
@@ -1429,7 +1324,6 @@ function renderAll() {
   state.plan = scheduleProjects(state.projects);
   ensureSelection();
   renderSidebar();
-  updateNavigation();
   renderHeader();
   const source = document.getElementById("project-source");
   const selected = state.projects.find((project) => project.tree.task_id === state.selectedProjectId);
@@ -1814,7 +1708,7 @@ document.getElementById("project-list").addEventListener("click", (event) => {
   const button = event.target.closest("[data-project-id]");
   if (!button) return;
   selectProject(button.dataset.projectId);
-  setNav("tree");
+  renderAll();
   document.querySelector(".project-head").scrollIntoView({ block: "start" });
 });
 document.getElementById("revise-current").addEventListener("click", () => {
@@ -2385,39 +2279,13 @@ document.getElementById("draft-regenerate").addEventListener("click", async () =
   if (request) await generateDraft(request);
 });
 
-function updateNavigation() {
-  document.querySelectorAll("[data-nav]").forEach(item => {
-    const selected = item.closest("#calendar-panel") ? state.calendarView : state.nav;
-    const active = item.dataset.nav === selected;
-    item.classList.toggle("active", active);
-    item.setAttribute("aria-pressed", String(active));
-  });
-}
-
-function setNav(nav) {
-  if (!["tree", "day", "timeline", "calendar"].includes(nav)) return;
-  state.nav = nav;
-  if (nav !== "tree") {
-    state.calendarView = nav;
-    document.getElementById("calendar-panel").open = true;
-  }
-  renderAll();
-  document.getElementById(nav === "tree" ? "timeline-card" : "calendar-panel").scrollIntoView({ block: "start" });
-}
-
 document.getElementById("calendar-panel").addEventListener("toggle", event => {
   // Collapsing only hides the mounted calendar, preserving an editor's draft.
-  if (event.target.open && state.nav === "tree") {
-    state.nav = state.calendarView;
-    renderCalendar();
-  } else if (!event.target.open) {
-    state.nav = "tree";
-  }
-  updateNavigation();
+  if (event.target.open) renderCalendar();
 });
 
-document.querySelectorAll("[data-nav]").forEach((button) => {
-  button.addEventListener("click", () => setNav(button.dataset.nav));
+document.querySelector('[data-nav="tree"]').addEventListener("click", () => {
+  document.getElementById("timeline-card").scrollIntoView({ block: "start" });
 });
 document.getElementById("search").addEventListener("input", (event) => {
   state.search = event.target.value;
@@ -2446,23 +2314,6 @@ document.getElementById("board").addEventListener("click", (event) => {
   }
   const move = event.target.closest("[data-tree-move]");
   if (move) { void moveTreeNode(move.dataset.treeMove, Number(move.dataset.direction)); return; }
-});
-document.getElementById("calendar-board").addEventListener("click", (event) => {
-  const day = event.target.closest("[data-day]");
-  if (day && !event.target.closest("[data-milestone-id]")) {
-    state.focus = parseYmd(day.dataset.day);
-    setNav("day");
-    return;
-  }
-  const button = event.target.closest("[data-milestone-id]");
-  if (!button) return;
-  if (button.dataset.projectId) selectProject(button.dataset.projectId);
-  state.selectedMilestoneId = button.dataset.milestoneId;
-  state.selectedSubtaskId = button.dataset.subtaskId || null;
-  setTreeExpanded([state.selectedMilestoneId, ...subtasksOf(selectedMilestone()).map(node => node.task_id)], true);
-  const targetId = treeId("toggle", state.selectedSubtaskId || state.selectedMilestoneId);
-  setNav("tree");
-  document.getElementById(targetId)?.focus();
 });
 document.getElementById("board").addEventListener("change", (event) => {
   const status = event.target.closest("select[data-status-task-id]");

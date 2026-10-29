@@ -113,3 +113,11 @@ request: reconcile FocusFlow with the Agent SDLC records and keep the desktop pl
 ```bash
 npm run app:dev
 ```
+
+## 2026-10-29：日周月统一行动卡片（用户后续确认）
+
+- 替换原周报横条和月历网格，日、周、月完整复用 SYA-UI `ScheduleCalendar` 和 `TaskEditor`，移除正文插槽及侧栏日/周/月入口；日期翻页继续复用主库 model。任务树及标题区保留。参考 React 官方状态保留说明：https://react.dev/learn/preserving-and-resetting-state ，保持同一挂载点。
+- 71 项 Python 回归与桌面脚本语法检查通过。独立 Electron 42.3.3（Chromium 148.0.7778.218 / Node 24.15.0）27 组流程通过；检查同样的卡片及三项操作、日期单位/月末/跨年、延期后跨日的周/月可见性与翻页筛选、窄屏、草案确认及真退出重启。
+- 本地证据：`_bmad-output/planner-electron/2026-10-29T04-38-39-467Z/result.json`。可执行文件为本仓库 `node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`；隔离根目录 `/private/var/folders/qm/1h3pl_hj7nx0w0kwrk6hqv800000gp/T/scheduler-electron-fLJl81`，profile/data 分离。报告记录实际产物哈希，`pageErrors=[]`、`survivors=[]`、provider 已关闭；周、月截图已人工检查。
+- 父应用编译 renderer/main/preload 后，`app/scripts/test-scheduler-tree-electron.mjs` 8 组真实流程通过，覆盖嵌入周/月任务编辑及从月卡片进入 Focus、用户确认启动、独立窗口交接和真退出重启。报告位于父仓库 `_bmad-output/scheduler-task-tree/report.json`，记录完整构建哈希和进程清理。
+- 本轮为编译源码桌面验收；独立测试只替代外部模型 HTTP 边界，父应用使用合成手动任务，均使用隔离资料目录。没有调用真实模型或验收打包安装版。

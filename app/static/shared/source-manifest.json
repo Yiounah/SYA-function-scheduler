@@ -4,8 +4,8 @@
   "rebuild": "npm run build:scheduler-calendar --workspace app -- --out-dir <scheduler>/app/static/shared",
   "entry": "app/src/features/scheduler/calendar-embed.tsx",
   "sourceHashes": {
-    "app/src/features/scheduler/calendar-embed.tsx": "f74c62d9f0abc2d18edee9895c326d5f8e6c30da50440f149fd40ec97b78657f",
-    "app/src/features/scheduler/ScheduleCalendar.tsx": "c65d3dcfa933c219a3e9db0def84d5a29f08d94a5ac5e993a14f5bc238cf2cb4",
+    "app/src/features/scheduler/calendar-embed.tsx": "7f7c07a941505e42ac999df286fe13aaef0028f08123c5ccae9043f384ba4a70",
+    "app/src/features/scheduler/ScheduleCalendar.tsx": "c180d07da056459debe5187498db520d0a0fe338bb5494bdb796e0204fb14777",
     "app/src/features/scheduler/TaskEditor.tsx": "519c06af4a82ad4d71bcd993bba318d97c51c5ce87ba04b1f12886da69d73726",
     "app/src/features/scheduler/model.ts": "55a32af4b8a279bf17b8ef00553c5fbb2dffd141afe53e8dfd1c5799eee5f104",
     "app/src/features/scheduler/granularity.ts": "b06ca02dbbfdf301c8c845024bb96ad6bb79f4080a9817ecd19a06577a32663f",
@@ -21,7 +21,7 @@
     "lucide-react": "0.562.0"
   },
   "assets": {
-    "sya-calendar.js": "84849276d50f57d94d4b6aad71a6183419a4537fb6d832a4ac8e103d55b23315",
+    "sya-calendar.js": "1c0a39aa395b4f59a05f04d0bb45952c256d05d2b8c2f48bbfa545f208afb5ac",
     "sya-calendar.js.LEGAL.txt": "781401a74effa9a866bb730d2041e8f2fc9b6be6ab8dcb7a337704d702c6d8cc",
     "sya-calendar.css": "918c9f960231a1ba505a1681453bea2d14af4568324cd920fefbea592e1a4962",
     "LICENSES.txt": "06e1a56768f1248a311a632d8ec5301dbb18228964e02c87fd6e47d2e61e81cd"

@@ -202,7 +202,8 @@ async function closeSuggestions() {
 const calendar = () => page.locator('#sya-action-calendar');
 async function dayView() {
   await closeSuggestions();
-  await page.locator('[data-nav="day"]:visible').first().click();
+  if (await page.locator('#calendar-panel').getAttribute('open') === null) await page.locator('#calendar-panel > summary').click();
+  await calendar().getByRole('button', {name:'日',exact:true}).click();
   await expect(calendar().getByRole('heading', {name:'每日行动日历'})).toBeVisible();
 }
 async function openPlan(goal, source = 'model') {
@@ -221,12 +222,12 @@ async function commit() {
   await expect(page.locator('#decompose-overlay')).not.toBeVisible();
 }
 async function record(name) { checks.push(name); console.log(`PASS ${name}`); }
-async function screenshot(name) {
+async function screenshot(name, area = 'tree') {
   await expect(page.locator('#toast')).toHaveCSS('opacity', '0');
-  await page.evaluate(() => {
-    if (document.querySelector('.sidebar [data-nav].active')?.dataset.nav !== 'tree') document.getElementById('calendar-panel').scrollIntoView({block:'start'});
+  await page.evaluate(area => {
+    if (area === 'calendar') document.getElementById('calendar-panel').scrollIntoView({block:'start'});
     else document.querySelector('.content').scrollTo({top:0, behavior:'instant'});
-  });
+  }, area);
   await page.screenshot({ path: join(evidence, `${name}.png`) });
 }
 
@@ -311,13 +312,21 @@ try {
   await expandNode(taskId);
   await record('Stage and subtask disclosure supports keyboard control and survives refresh independently');
 
-  for (const nav of ['timeline', 'calendar', 'day']) {
-    await page.locator(`.sidebar [data-nav="${nav}"]`).click();
+  await expect(page.locator('.sidebar [data-nav]')).toHaveCount(1);
+  await expect(page.locator('.week-board, .month-grid, #calendar-visualization')).toHaveCount(0);
+  await dayView();
+  const dayCards = await calendar().getByTestId('calendar-work-block').count();
+  assert.ok(dayCards > 0);
+  for (const [label, name] of [['周', 'week'], ['月', 'month'], ['日', 'day']]) {
+    await calendar().getByRole('button', {name:label,exact:true}).click();
     await expect(page.locator('#board.task-tree-board')).toBeVisible();
-    await expect(page.locator('#calendar-panel')).toHaveAttribute('open');
+    await expect(calendar().getByTestId('calendar-work-block')).toHaveCount(dayCards);
+    for (const action of ['开始专注', '调整 / 延期', '完成整个任务']) {
+      await expect(calendar().getByRole('button', {name:action,exact:true})).toHaveCount(dayCards);
+    }
     assert.deepEqual(await slots(), initialSlots);
     assert.equal((await projects()).length, 1);
-    await screenshot(`02-view-${nav}`);
+    await screenshot(`02-view-${name}`, 'calendar');
   }
   // One shared header survives all modes; date navigation uses calendar units.
   const calendarRoot = await page.locator('#sya-action-calendar').elementHandle();
@@ -342,32 +351,15 @@ try {
     await dateInput.fill(start);
     await page.locator('#sya-action-calendar').getByRole('button',{name:'下一个日期区间'}).click();
     await expect(dateInput).toHaveValue(next);
-    await expect(page.locator(`#calendar-visualization [data-day="${next}"]`)).toBeVisible();
+    await expect(calendar().getByLabel('当前日期区间')).toHaveText(next.slice(0, 7));
   }
   await page.locator('#sya-action-calendar').getByRole('button',{name:'今天',exact:true}).click();
   await calendarRoot.dispose();
   await record('One shared calendar header keeps correct day/week/month titles, navigation, month ends and year boundaries');
-  await page.locator('.sidebar [data-nav="timeline"]').click();
-  const weekStage = page.locator('#calendar-board .bar[data-milestone-id]').first();
-  const linkedStage = await weekStage.getAttribute('data-milestone-id');
-  await weekStage.click();
-  await expect(toggle(linkedStage)).toBeFocused();
-  await expect(toggle(linkedStage)).toHaveAttribute('aria-expanded', 'true');
-  await page.locator('.sidebar [data-nav="calendar"]').click();
-  const monthStage = page.locator('#calendar-board .month-chip').first();
-  const monthLinkedStage = await monthStage.getAttribute('data-milestone-id');
-  await monthStage.click();
-  await expect(toggle(monthLinkedStage)).toBeFocused();
-  await page.locator('.sidebar [data-nav="calendar"]').click();
-  const emptyDay = page.locator('#calendar-board button.day:not(.has-ms)').first();
-  const clickedDate = await emptyDay.getAttribute('data-day');
-  await emptyDay.click();
-  await expect(page.locator('#sya-action-calendar').getByLabel('日历日期')).toHaveValue(clickedDate);
-  await page.locator('#sya-action-calendar').getByRole('button', {name:'今天', exact:true}).click();
   await page.locator('#project-list [data-project-id]').first().click();
   await expect(page.locator('.sidebar [data-nav="tree"]')).toHaveClass(/active/);
   await expect(page.locator('.project-head')).toBeInViewport();
-  await record('Confirmed four-level plan; calendars share stored slots and stage, date and project links navigate to visible destinations');
+  await record('All calendar modes reuse the daily action cards and actions; sidebar only links the task tree and projects');
   await treeView();
 
   const first = leaves(current.tree)[0].task_id;
@@ -412,10 +404,11 @@ try {
   await page.locator('#calendar-panel > summary').click();
   await expect(page.locator('#sya-action-calendar')).toBeVisible();
   await page.locator('#sya-action-calendar').getByRole('button', {name: '周', exact: true}).click();
-  await expect(page.locator('#calendar-visualization.week-board')).toBeVisible();
+  await expect(calendar().getByTestId('calendar-work-block').first()).toBeVisible();
   await expect(page.locator('#board.task-tree-board')).toBeVisible();
   await page.locator('#sya-action-calendar').getByRole('button', {name:'月',exact:true}).click();
-  await expect(page.locator('#calendar-visualization.month-grid')).toBeVisible();
+  await expect(calendar().getByTestId('calendar-work-block').first()).toBeVisible();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await page.locator('#sya-action-calendar').getByRole('button', {name:'日',exact:true}).click();
   await page.locator('#calendar-panel > summary').click();
   await page.locator('.workspace-intro').scrollIntoViewIfNeeded();
@@ -566,10 +559,10 @@ try {
   const minutesOf = (slot) => (new Date(slot.endTime) - new Date(slot.startTime)) / 60000;
   assert.ok(routineTimeline.breaks.filter((slot) => slot.kind === 'break').some((slot) => minutesOf(slot) === 5));
   assert.ok(routineTimeline.breaks.some((slot) => slot.kind === 'recovery' && minutesOf(slot) === 15));
-  await page.locator('.sidebar [data-nav="day"]').click();
+  await dayView();
   await expect(page.getByTestId('calendar-break-block').first()).toBeVisible();
   assert.equal(await page.getByTestId('calendar-break-block').locator('input').count(), 0);
-  await screenshot('07-overview-with-breaks');
+  await screenshot('07-overview-with-breaks', 'calendar');
   await record('Routine preview lists affected work; cancel preserves and confirmation saves the change');
 
   await dayView();
@@ -617,14 +610,32 @@ try {
   assert.equal((await api(`/api/scheduler/tasks/${postponedTaskId}`)).title,postponedTitle);
   await calendar().getByLabel('日历日期').fill(postponedDate);
   await expect(calendar().getByTestId('calendar-work-block').filter({hasText:postponedTitle})).toBeVisible();
-  await screenshot('08-action-calendar-postponed');
+  await screenshot('08-action-calendar-postponed', 'calendar');
   await closeSuggestions();
-  await calendar().getByRole('button',{name:'周',exact:true}).click();
-  await expect(calendar().getByRole('heading',{name:'每周行动周报',exact:true})).toBeVisible();
-  await expect(page.locator('#calendar-visualization.week-board .bar')).not.toHaveCount(0);
-  await page.locator('[data-nav="calendar"]:visible').first().click();
-  await expect(calendar().getByRole('heading',{name:'每月行动月历',exact:true})).toBeVisible();
-  await expect(page.locator(`[data-day="${postponedDate}"]`)).toHaveClass(/has-ms/);
+  // A day without the postponed task must still show it in its week/month.
+  const rangeAnchor = await page.evaluate(date => {
+    const d = new Date(date + 'T12:00:00');
+    d.setDate(d.getDate() + (d.getDay() === 1 || d.getDate() === 1 ? 1 : -1));
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }, postponedDate);
+  await calendar().getByLabel('日历日期').fill(rangeAnchor);
+  await expect(calendar().getByTestId('calendar-work-block').filter({hasText:postponedTitle})).toHaveCount(0);
+  for (const [label, title] of [['周','每周行动周报'], ['月','每月行动月历']]) {
+    await calendar().getByRole('button',{name:label,exact:true}).click();
+    await expect(calendar().getByRole('heading',{name:title,exact:true})).toBeVisible();
+    const block = calendar().getByTestId('calendar-work-block').filter({hasText:postponedTitle}).first();
+    await expect(block).toBeVisible();
+    await expect(block).toContainText(postponedDate);
+    await expect(block.getByRole('button',{name:'开始专注',exact:true})).toBeEnabled();
+    await expect(block.getByRole('button',{name:'完成整个任务',exact:true})).toBeEnabled();
+    await block.getByRole('button',{name:'调整 / 延期',exact:true}).click();
+    await expect(calendar().getByLabel('任务安排日期')).toHaveValue(postponedDate);
+    await calendar().getByRole('button',{name:'取消调整',exact:true}).click();
+    await calendar().getByRole('button',{name:'下一个日期区间'}).click();
+    await expect(calendar().getByTestId('calendar-work-block').filter({hasText:postponedTitle})).toHaveCount(0);
+    await calendar().getByRole('button',{name:'上一个日期区间'}).click();
+    await expect(block).toBeVisible();
+  }
   const postponedTimeline=await api(`/api/scheduler/timeline?from=${postponedDate}&to=${postponedDate}&view=day&projectId=all`);
   assert(postponedTimeline.events.some(event=>event.taskId===postponedTaskId&&event.startTime.startsWith(postponedDate)));
   await record('Shared action calendar exposes Focus/Edit/Complete; visible task editor cancels safely and postponement updates the day, week and month views');
