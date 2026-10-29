@@ -76,7 +76,7 @@ class FocusFlowAppTests(unittest.TestCase):
         self.assertEqual(self.client.get('/static/shared/source-manifest.json').status_code, 404)
         self.assertEqual(self.client.get('/static/shared/%2e%2e/%2e%2e/api/ui.py').status_code, 404)
         self.assertEqual(self.client.get('/static/index.html').status_code, 404)
-        self.assertIn("今日粒度", response.text)
+        self.assertIn("任务粒度", response.text)
         self.assertIn('data-lang="en"', response.text)
         self.assertIn("Research Planner", script.text)
         self.assertNotIn("Live Event Stream", response.text)

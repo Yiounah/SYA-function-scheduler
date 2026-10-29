@@ -223,7 +223,10 @@ async function commit() {
 async function record(name) { checks.push(name); console.log(`PASS ${name}`); }
 async function screenshot(name) {
   await expect(page.locator('#toast')).toHaveCSS('opacity', '0');
-  await page.locator('.content').evaluate((element) => element.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.evaluate(() => {
+    if (document.querySelector('.sidebar [data-nav].active')?.dataset.nav !== 'tree') document.getElementById('calendar-panel').scrollIntoView({block:'start'});
+    else document.querySelector('.content').scrollTo({top:0, behavior:'instant'});
+  });
   await page.screenshot({ path: join(evidence, `${name}.png`) });
 }
 
@@ -273,7 +276,20 @@ try {
   const stageBounds = await page.locator('article[data-tree-stage-id]').evaluateAll((items) => items.map((item) => { const r = item.getBoundingClientRect(); return { x: r.x, y: r.y }; }));
   assert.equal(Math.round(stageBounds[0].y), Math.round(stageBounds[1].y));
   assert.ok(stageBounds[1].x > stageBounds[0].x, 'stages must be horizontal columns');
+  await expect(page.locator('.workspace-intro .eyebrow')).toHaveText('SCHEDULE · 任务规划');
+  await expect(page.locator('.workspace-intro h1')).toHaveText('把目标，变成今天的一小步。');
+  await expect(page.locator('.workspace-intro > p:last-child')).toHaveText('先确定方向，再安排节奏。计划可以调整，每一次改变都由你确认。');
+  await expect(page.locator('#calendar-panel')).not.toHaveAttribute('open');
+  await page.locator('#calendar-panel > summary').focus();
+  await page.locator('#calendar-panel > summary').press('Enter');
+  await expect(page.locator('#sya-action-calendar')).toBeVisible();
+  await expect(page.locator('#board.task-tree-board')).toBeVisible();
+  await page.locator('#calendar-panel > summary').press('Space');
+  await expect(page.locator('#calendar-panel')).not.toHaveAttribute('open');
+  await expect(page.locator('#sya-action-calendar')).not.toBeVisible();
+  await page.locator('.workspace-intro').scrollIntoViewIfNeeded();
   await screenshot('02-tree-overview');
+  await record('Reference hero retained; tree remains primary while auxiliary calendar opens and closes by keyboard');
   await record('Project overview retained above horizontal stages, vertical subtasks and checklists');
 
   const stageId = current.tree.children[0].task_id;
@@ -297,11 +313,33 @@ try {
 
   for (const nav of ['timeline', 'calendar', 'day']) {
     await page.locator(`.sidebar [data-nav="${nav}"]`).click();
+    await expect(page.locator('#board.task-tree-board')).toBeVisible();
+    await expect(page.locator('#calendar-panel')).toHaveAttribute('open');
     assert.deepEqual(await slots(), initialSlots);
     assert.equal((await projects()).length, 1);
     await screenshot(`02-view-${nav}`);
   }
-  await record('Confirmed four-level plan; day/week/month share unchanged stored slots');
+  await page.locator('.sidebar [data-nav="timeline"]').click();
+  const weekStage = page.locator('#calendar-board .bar[data-milestone-id]').first();
+  const linkedStage = await weekStage.getAttribute('data-milestone-id');
+  await weekStage.click();
+  await expect(toggle(linkedStage)).toBeFocused();
+  await expect(toggle(linkedStage)).toHaveAttribute('aria-expanded', 'true');
+  await page.locator('.sidebar [data-nav="calendar"]').click();
+  const monthStage = page.locator('#calendar-board .month-chip').first();
+  const monthLinkedStage = await monthStage.getAttribute('data-milestone-id');
+  await monthStage.click();
+  await expect(toggle(monthLinkedStage)).toBeFocused();
+  await page.locator('.sidebar [data-nav="calendar"]').click();
+  const emptyDay = page.locator('#calendar-board button.day:not(.has-ms)').first();
+  const clickedDate = await emptyDay.getAttribute('data-day');
+  await emptyDay.click();
+  await expect(page.locator('#sya-action-calendar').getByLabel('日历日期')).toHaveValue(clickedDate);
+  await page.locator('#sya-action-calendar').getByRole('button', {name:'今天', exact:true}).click();
+  await page.locator('#project-list [data-project-id]').first().click();
+  await expect(page.locator('.sidebar [data-nav="tree"]')).toHaveClass(/active/);
+  await expect(page.locator('.project-head')).toBeInViewport();
+  await record('Confirmed four-level plan; calendars share stored slots and stage, date and project links navigate to visible destinations');
   await treeView();
 
   const first = leaves(current.tree)[0].task_id;
@@ -341,6 +379,18 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow window must not scroll the entire document horizontally');
   await expect(page.locator('#open-modal')).toBeVisible();
   await screenshot('04-tree-narrow');
+  await page.locator('#calendar-panel > summary').click();
+  await expect(page.locator('#calendar-panel')).not.toHaveAttribute('open');
+  await page.locator('#calendar-panel > summary').click();
+  await expect(page.locator('#sya-action-calendar')).toBeVisible();
+  await page.locator('#sya-action-calendar').getByRole('button', {name: '周', exact: true}).click();
+  await expect(page.locator('#calendar-board.week-board')).toBeVisible();
+  await expect(page.locator('#board.task-tree-board')).toBeVisible();
+  await page.locator('#calendar-panel [data-nav="calendar"]').click();
+  await expect(page.locator('#calendar-board.month-grid')).toBeVisible();
+  await page.locator('#calendar-panel [data-nav="day"]').click();
+  await page.locator('#calendar-panel > summary').click();
+  await page.locator('.workspace-intro').scrollIntoViewIfNeeded();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 1020));
   await record('Narrow window keeps the planning entry and confines horizontal stages to their scroll area');
 
@@ -543,7 +593,7 @@ try {
   await closeSuggestions();
   await calendar().getByRole('button',{name:'周',exact:true}).click();
   await expect(page.locator('#board-title')).toHaveText('研究周报');
-  await expect(page.locator('#board.week-board .bar')).not.toHaveCount(0);
+  await expect(page.locator('#calendar-board.week-board .bar')).not.toHaveCount(0);
   await page.locator('[data-nav="calendar"]:visible').first().click();
   await expect(page.locator('#board-title')).toHaveText('研究月历');
   await expect(page.locator(`[data-day="${postponedDate}"]`)).toHaveClass(/has-ms/);

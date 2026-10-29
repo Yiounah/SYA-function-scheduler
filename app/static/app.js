@@ -40,7 +40,7 @@ const COPY = {
     "emptyMeta": "写下长程目标后生成研究时间轴",
     "span": "周期",
     "overall": "整体进度",
-    "boardDay": "每日任务",
+    "boardDay": "每日行动日历",
     "boardTimeline": "研究周报",
     "boardCalendar": "研究月历",
     "today": "今天",
@@ -203,7 +203,12 @@ const COPY = {
     "routineImpact": "工作时段 {start}–{end} · 每天 {hours} 小时",
     "restAdvice": "例如：下午更适合连续工作，休息时离开屏幕。",
     "workspaceTitle": "把目标，变成今天的一小步。",
-    "workspaceSubtitle": "先安排可执行的任务，再按自己的节奏调整。",
+    "workspaceSubtitle": "先确定方向，再安排节奏。计划可以调整，每一次改变都由你确认。",
+    "workspaceEyebrow": "SCHEDULE · 任务规划",
+    "rhythmSettings": "节奏设置",
+    "actionAndReview": "行动与回顾",
+    "calendarSupportHint": "每日行动日历 · 研究周报 · 研究月历",
+    "calendarViews": "日历视图",
     "workRestCycle": "专注与休息",
     "focusMinutes": "连续专注（分钟）",
     "breakMinutes": "短休息（分钟）",
@@ -279,7 +284,7 @@ const COPY = {
     "emptyMeta": "Write a long-horizon goal to generate a research timeline",
     "span": "Span",
     "overall": "Overall",
-    "boardDay": "Daily tasks",
+    "boardDay": "Daily action calendar",
     "boardTimeline": "Weekly report",
     "boardCalendar": "Research calendar",
     "today": "Today",
@@ -442,7 +447,12 @@ const COPY = {
     "routineImpact": "Work {start}–{end} · {hours} hours/day",
     "restAdvice": "For example: longer sessions in the afternoon; leave the screen during breaks.",
     "workspaceTitle": "Turn a goal into today’s next step.",
-    "workspaceSubtitle": "Make the work actionable, then adjust it to your rhythm.",
+    "workspaceSubtitle": "Choose your direction, then find your rhythm. Plans can change; every change is yours to confirm.",
+    "workspaceEyebrow": "SCHEDULE · PLANNING",
+    "rhythmSettings": "Your rhythm",
+    "actionAndReview": "Action & review",
+    "calendarSupportHint": "Daily actions · Weekly review · Monthly calendar",
+    "calendarViews": "Calendar views",
     "workRestCycle": "Focus and breaks",
     "focusMinutes": "Continuous focus (minutes)",
     "breakMinutes": "Short break (minutes)",
@@ -495,6 +505,7 @@ const state = {
   ws: null,
   inflight: false,
   nav: "tree",
+  calendarView: "day",
   treeDisclosure: loadTreeDisclosure(),
   treeDisclosureDirty: false,
   treeDisclosureSaving: false,
@@ -1117,7 +1128,7 @@ function renderHeader() {
 }
 
 function renderDay(plan) {
-  const board = document.getElementById("board");
+  const board = document.getElementById("calendar-board");
   board.className = "day-agenda";
   let mount = document.getElementById("sya-action-calendar");
   if (!mount) {
@@ -1157,7 +1168,7 @@ async function saveCalendarTask(taskId, patch) {
 }
 
 function renderTimeline(plan) {
-  const board = document.getElementById("board");
+  const board = document.getElementById("calendar-board");
   const weekStart = mondayOf(state.focus);
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const weekEnd = days[6];
@@ -1194,7 +1205,7 @@ function renderTimeline(plan) {
 }
 
 function renderMonth(plan) {
-  const board = document.getElementById("board");
+  const board = document.getElementById("calendar-board");
   const year = state.focus.getFullYear();
   const month = state.focus.getMonth();
   const first = new Date(year, month, 1);
@@ -1382,46 +1393,42 @@ async function moveTreeNode(taskId, direction) {
 
 function renderBoard() {
   const board = document.getElementById("board");
-  const calendar = document.getElementById("sya-action-calendar");
-  if (state.nav !== "day" && calendar) window.SyaSchedulerCalendar.unmount(calendar);
-  document.querySelector("#timeline-card > .card-head").hidden = state.nav === "day";
-  document.getElementById("calendar-note").hidden = state.nav === "day";
-  const scrollLeft = board.scrollLeft;
   const content = document.querySelector(".content");
+  const scrollLeft = board.scrollLeft;
   const scrollTop = content.scrollTop;
-  const treeView = state.nav === "tree";
-  document.getElementById("calendar-pager").hidden = treeView;
-  document.getElementById("tree-controls").hidden = !treeView;
-  if (treeView) {
-    document.getElementById("board-title").textContent = t("taskTree");
-    document.getElementById("calendar-note").textContent = t("treeHint");
-    renderTaskTree();
-    board.scrollLeft = scrollLeft;
-    content.scrollTop = scrollTop;
-    if (state.boardFocusId) {
-      let target = document.getElementById(state.boardFocusId);
-      if (target?.disabled && target.dataset.treeMove) {
-        target = document.getElementById(treeId("toggle", target.dataset.treeMove)) || document.getElementById(treeId("check", target.dataset.treeMove));
-      }
-      target?.focus({ preventScroll: true });
+  renderTaskTree();
+  if (document.getElementById("calendar-panel").open) renderCalendar();
+  board.scrollLeft = scrollLeft;
+  content.scrollTop = scrollTop;
+  if (state.boardFocusId) {
+    let target = document.getElementById(state.boardFocusId);
+    if (target?.disabled && target.dataset.treeMove) {
+      target = document.getElementById(treeId("toggle", target.dataset.treeMove)) || document.getElementById(treeId("check", target.dataset.treeMove));
     }
-    return;
+    target?.focus({ preventScroll: true });
   }
-  board.removeAttribute("aria-busy");
+}
+
+function renderCalendar() {
+  const view = state.calendarView;
+  const calendar = document.getElementById("sya-action-calendar");
+  if (view !== "day" && calendar) window.SyaSchedulerCalendar.unmount(calendar);
+  // The reused daily calendar owns its heading and date controls.
+  document.querySelector(".calendar-navigation").hidden = view === "day";
+  document.getElementById("calendar-heading").hidden = view === "day";
+  document.getElementById("calendar-note").hidden = view === "day";
   const plan = state.plan || [];
   const focus = state.focus;
-  const rangeStart = state.nav === "timeline" ? mondayOf(focus) : state.nav === "calendar" ? new Date(focus.getFullYear(), focus.getMonth(), 1) : focus;
-  const rangeEnd = state.nav === "timeline" ? addDays(rangeStart, 6) : state.nav === "calendar" ? new Date(focus.getFullYear(), focus.getMonth() + 1, 0) : focus;
+  const rangeStart = view === "timeline" ? mondayOf(focus) : view === "calendar" ? new Date(focus.getFullYear(), focus.getMonth(), 1) : focus;
+  const rangeEnd = view === "timeline" ? addDays(rangeStart, 6) : view === "calendar" ? new Date(focus.getFullYear(), focus.getMonth() + 1, 0) : focus;
   const breaks = state.breaks.filter((slot) => slot.date >= ymd(rangeStart) && slot.date <= ymd(rangeEnd));
   document.getElementById("calendar-note").textContent = breaks.length ? t("breakCount", { count: breaks.length, minutes: breaks.reduce((sum, slot) => sum + minutesFromClock(slot.end) - minutesFromClock(slot.start), 0) }) : "";
-  const title = state.nav === "day" ? "boardDay" : state.nav === "calendar" ? "boardCalendar" : "boardTimeline";
-  document.getElementById("board-title").textContent = t(title);
+  document.getElementById("board-title").textContent = t(view === "day" ? "boardDay" : view === "calendar" ? "boardCalendar" : "boardTimeline");
   document.getElementById("cal-prev").setAttribute("aria-label", t("prevPeriod"));
   document.getElementById("cal-next").setAttribute("aria-label", t("nextPeriod"));
-  if (state.nav === "day") {
-    document.getElementById("range-label").textContent = new Intl.DateTimeFormat(localeTag(), { year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(focus);
+  if (view === "day") {
     renderDay(plan);
-  } else if (state.nav === "calendar") {
+  } else if (view === "calendar") {
     document.getElementById("range-label").textContent = new Intl.DateTimeFormat(localeTag(), { year: "numeric", month: "long" }).format(focus);
     renderMonth(plan);
   } else {
@@ -1444,6 +1451,7 @@ function renderAll() {
   state.plan = scheduleProjects(state.projects);
   ensureSelection();
   renderSidebar();
+  updateNavigation();
   renderHeader();
   const source = document.getElementById("project-source");
   const selected = state.projects.find((project) => project.tree.task_id === state.selectedProjectId);
@@ -1828,7 +1836,8 @@ document.getElementById("project-list").addEventListener("click", (event) => {
   const button = event.target.closest("[data-project-id]");
   if (!button) return;
   selectProject(button.dataset.projectId);
-  renderAll();
+  setNav("tree");
+  document.querySelector(".project-head").scrollIntoView({ block: "start" });
 });
 document.getElementById("revise-current").addEventListener("click", () => {
   if (!state.selectedProjectId) return;
@@ -2398,21 +2407,45 @@ document.getElementById("draft-regenerate").addEventListener("click", async () =
   if (request) await generateDraft(request);
 });
 
+function updateNavigation() {
+  document.querySelectorAll("[data-nav]").forEach(item => {
+    const selected = item.closest("#calendar-panel") ? state.calendarView : state.nav;
+    const active = item.dataset.nav === selected;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-pressed", String(active));
+  });
+}
+
 function setNav(nav) {
   if (!["tree", "day", "timeline", "calendar"].includes(nav)) return;
   state.nav = nav;
-  document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item.dataset.nav === nav));
+  if (nav !== "tree") {
+    state.calendarView = nav;
+    document.getElementById("calendar-panel").open = true;
+  }
   renderAll();
+  document.getElementById(nav === "tree" ? "timeline-card" : "calendar-panel").scrollIntoView({ block: "start" });
 }
+
+document.getElementById("calendar-panel").addEventListener("toggle", event => {
+  // Collapsing only hides the mounted calendar, preserving an editor's draft.
+  if (event.target.open && state.nav === "tree") {
+    state.nav = state.calendarView;
+    renderCalendar();
+  } else if (!event.target.open) {
+    state.nav = "tree";
+  }
+  updateNavigation();
+});
 
 function shiftFocus(direction) {
   const focus = state.focus;
-  if (state.nav === "calendar") {
+  if (state.calendarView === "calendar") {
     const next = new Date(focus.getFullYear(), focus.getMonth() + direction, 1);
     const last = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
     next.setDate(Math.min(focus.getDate(), last));
     state.focus = next;
-  } else if (state.nav === "timeline") {
+  } else if (state.calendarView === "timeline") {
     state.focus = addDays(focus, 7 * direction);
   } else {
     state.focus = addDays(focus, direction);
@@ -2456,6 +2489,8 @@ document.getElementById("board").addEventListener("click", (event) => {
   }
   const move = event.target.closest("[data-tree-move]");
   if (move) { void moveTreeNode(move.dataset.treeMove, Number(move.dataset.direction)); return; }
+});
+document.getElementById("calendar-board").addEventListener("click", (event) => {
   const day = event.target.closest("[data-day]");
   if (day && !event.target.closest("[data-milestone-id]")) {
     state.focus = parseYmd(day.dataset.day);
@@ -2468,8 +2503,9 @@ document.getElementById("board").addEventListener("click", (event) => {
   state.selectedMilestoneId = button.dataset.milestoneId;
   state.selectedSubtaskId = button.dataset.subtaskId || null;
   setTreeExpanded([state.selectedMilestoneId, ...subtasksOf(selectedMilestone()).map(node => node.task_id)], true);
+  const targetId = treeId("toggle", state.selectedSubtaskId || state.selectedMilestoneId);
   setNav("tree");
-  document.getElementById(treeId("toggle", state.selectedSubtaskId || state.selectedMilestoneId))?.focus();
+  document.getElementById(targetId)?.focus();
 });
 document.getElementById("board").addEventListener("change", (event) => {
   const status = event.target.closest("select[data-status-task-id]");

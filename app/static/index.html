@@ -32,8 +32,6 @@
           <div class="brand" data-i18n="brand">任务规划</div>
           <div class="topbar-actions">
             <input class="search" id="search" type="search" data-i18n-placeholder="searchPlaceholder" data-i18n-aria="searchAria" placeholder="搜索任务..." aria-label="搜索任务" />
-            <button class="schedule-button" id="open-schedule" type="button">工作时间</button>
-            <button class="schedule-button" id="open-day-grain" type="button">今日粒度</button>
             <div class="lang-toggle" id="lang-toggle" role="group" aria-label="语言 / Language">
               <button type="button" data-lang="zh" class="active">中文</button>
               <button type="button" data-lang="en">EN</button>
@@ -42,7 +40,7 @@
         </header>
 
         <main class="content">
-          <div class="workspace-intro"><p class="eyebrow">SCHEDULE</p><h1 data-i18n="workspaceTitle">把目标，变成今天的一小步。</h1><p data-i18n="workspaceSubtitle">先安排可执行的任务，再按自己的节奏调整。</p></div>
+          <div class="workspace-intro"><p class="eyebrow" data-i18n="workspaceEyebrow">SCHEDULE · 任务规划</p><h1 data-i18n="workspaceTitle">把目标，变成今天的一小步。</h1><p data-i18n="workspaceSubtitle">先确定方向，再安排节奏。计划可以调整，每一次改变都由你确认。</p></div>
           <section class="card project-head">
             <div>
               <div class="title-row">
@@ -59,10 +57,16 @@
             </div>
           </section>
 
-          <section class="card" id="timeline-card">
+          <div class="planning-tools" role="group" data-i18n-aria="rhythmSettings">
+            <span class="tools-label" data-i18n="rhythmSettings">节奏设置</span>
+            <button class="schedule-button" id="open-schedule" type="button">作息安排</button>
+            <button class="schedule-button" id="open-day-grain" type="button">任务粒度</button>
+          </div>
+
+          <section class="card" id="timeline-card" aria-labelledby="tree-title">
             <div class="card-head">
               <div>
-                <strong id="board-title" data-i18n="taskTree">任务树</strong>
+                <h2 id="tree-title" data-i18n="taskTree">任务树</h2>
                 <div class="legend">
                   <span><i class="dot-done"></i><span data-i18n="legendDone">已完成</span></span>
                   <span><i class="dot-now"></i><span data-i18n="legendNow">进行中</span></span>
@@ -70,24 +74,39 @@
                 </div>
               </div>
               <div class="pager">
-                <div class="view-switch" role="group" data-i18n-aria="nav">
-                  <button class="active" data-nav="tree" type="button" data-i18n="taskTree">任务树</button>
-                  <button data-nav="day" type="button" data-i18n="day">日</button>
-                  <button data-nav="timeline" type="button" data-i18n="timeline">周</button>
-                  <button data-nav="calendar" type="button" data-i18n="calendar">月</button>
-                </div>
-                <span id="calendar-pager" class="calendar-pager">
-                <button id="cal-prev" type="button" aria-label="上一页">‹</button>
-                <div class="meta" id="range-label"></div>
-                <button id="cal-today" type="button" data-i18n="today">今天</button>
-                <button id="cal-next" type="button" aria-label="下一页">›</button>
-                </span>
                 <span id="tree-controls" class="tree-controls"><button id="tree-expand-all" type="button" data-i18n="expandAll">全部展开</button><button id="tree-collapse-all" type="button" data-i18n="collapseAll">全部收起</button></span>
               </div>
             </div>
-            <p class="hint calendar-note" id="calendar-note"></p>
+            <p class="hint tree-hint" data-i18n="treeHint">横向查看阶段，展开子任务和清单；同级顺序可以调整并自动保存。</p>
             <div id="board"></div>
           </section>
+
+          <details class="card calendar-panel" id="calendar-panel">
+            <summary>
+              <span class="calendar-summary-copy"><strong data-i18n="actionAndReview">行动与回顾</strong><span data-i18n="calendarSupportHint">每日行动日历 · 研究周报 · 研究月历</span></span>
+              <span class="calendar-disclosure" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="calendar-content">
+              <div class="calendar-navigation">
+                <div class="view-switch" role="group" data-i18n-aria="calendarViews">
+                  <button data-nav="day" type="button" data-i18n="boardDay">每日行动日历</button>
+                  <button data-nav="timeline" type="button" data-i18n="boardTimeline">研究周报</button>
+                  <button data-nav="calendar" type="button" data-i18n="boardCalendar">研究月历</button>
+                </div>
+              </div>
+              <div class="card-head" id="calendar-heading">
+                <h2 id="board-title" data-i18n="boardDay">每日行动日历</h2>
+                <span id="calendar-pager" class="calendar-pager pager">
+                  <button id="cal-prev" type="button" aria-label="上一页">‹</button>
+                  <span class="meta" id="range-label"></span>
+                  <button id="cal-today" type="button" data-i18n="today">今天</button>
+                  <button id="cal-next" type="button" aria-label="下一页">›</button>
+                </span>
+              </div>
+              <p class="hint calendar-note" id="calendar-note"></p>
+              <div id="calendar-board"></div>
+            </div>
+          </details>
 
         </main>
       </section>

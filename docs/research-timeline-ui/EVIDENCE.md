@@ -1,5 +1,13 @@
 # Delivery evidence
 
+## 2026-10-29：任务树主区与辅助日历布局
+
+- 保留完整标题区；任务树始终显示，日历改为下方原生 `details/summary` 辅助区域，作息和粒度按钮移入次要设置行。使用既有树、共享行动日历和调整弹窗，没有新增 UI 依赖或 HTTP 合同。
+- `SYA_OPENAI_API_KEY='' npm test`：71 项回归和脚本语法检查通过。更新旧静态按钮文案断言，真实交互由原生套件验证。
+- `node scripts/test-planner-electron.mjs`：最终 **26/26** 通过，Electron 42.3.3；验证标题、键盘展开/收起辅助区域、切换日周月仍保留树、周/月阶段返回正确焦点、点击日期打开对应日历、侧栏课题返回主区域，以及原有排序、延期、粒度、作息、真实退出重启。
+- 最终证据：`_bmad-output/planner-electron/2026-10-29T04-08-52-770Z/result.json`。包含精确源码哈希、可执行文件、隔离 profile/data 和截图，`pageErrors=[]`、`cleanup.survivors=[]`。仅模型 HTTP 边界使用固定回复，未读取真实密钥或个人计划；这是源码 App 验收。
+- 新增跳转检查发现旧选择规范化会把阶段焦点改为第一个子任务，已在重绘前保存目标 ID；侧栏切换课题会滚回课题与任务树，避免留在下方全局日历。原生折叠交互参考 [WAI Disclosure Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/)。
+
 ## 2026-10-28 后续：互斥粒度与主库行动日历
 
 - `SYA_OPENAI_API_KEY='' npm test`：71 项 Python 回归与桌面脚本语法检查通过。新增共享资源白名单、路径拒绝及原有认证门禁检查；固定预设、自定义范围、旧参数规范化和保存恢复覆盖保持通过。
