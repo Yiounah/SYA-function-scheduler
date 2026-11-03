@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>任务规划</title>
+    <script>
+      if (new URLSearchParams(window.location.search).get('embedded') === '1') {
+        document.documentElement.dataset.presentation = 'embedded';
+      }
+    </script>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>

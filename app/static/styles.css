@@ -510,3 +510,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .intro-actions { flex-basis: 100%; align-items: flex-end; }
   .intro-actions > button { width: 160px; }
 }
+
+/* SYA already owns the module frame and accent. Keep the standalone shell above. */
+html[data-presentation="embedded"] { --planner-gutter: 32px; }
+html[data-presentation="embedded"] body,
+html[data-presentation="embedded"] .workspace,
+html[data-presentation="embedded"] .content { background: transparent; }
+html[data-presentation="embedded"] .app { padding: 0; }
+html[data-presentation="embedded"] .workspace { border: 0; border-radius: 0; }
+html[data-presentation="embedded"] .topbar,
+html[data-presentation="embedded"] .content { width: 100%; max-width: 1180px; margin-inline: auto; padding-inline: var(--planner-gutter); }
+html[data-presentation="embedded"] .topbar { border-top: 0; }
+html[data-presentation="embedded"] .brand { display: none; }
+html[data-presentation="embedded"] .content { padding-block: 24px 32px; gap: 20px; }
+html[data-presentation="embedded"] .workspace-intro { padding: 0 0 8px; }
+html[data-presentation="embedded"] .workspace-intro .eyebrow { font-size: 10px; letter-spacing: .14em; }
+html[data-presentation="embedded"] .workspace-intro h1 { margin: 8px 0; font-size: 30px; font-weight: 600; }
+html[data-presentation="embedded"] .workspace-intro > p:last-child { font-size: 14px; }
+@media (max-width: 760px) {
+  html[data-presentation="embedded"] { --planner-gutter: 16px; }
+  html[data-presentation="embedded"] .content { padding-block: 20px 24px; }
+}

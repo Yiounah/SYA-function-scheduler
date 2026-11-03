@@ -1,5 +1,12 @@
 # Delivery evidence
 
+## 2026-11-03: Seamless SYA task workspace
+
+- Embedded presentation removes the second frame, accent and background; desktop and 390px screenshots were inspected. Standalone keeps its original shell. No HTTP, IPC or planning logic changed.
+- `npm test`: 71 service cases and desktop syntax checks passed. The host renderer, main and preload compiled successfully; targeted SchedulePage lint passed.
+- All 10 checks passed in the host's `app/scripts/test-scheduler-tree-electron.mjs`: single host accent, transparent surfaces, aligned responsive gutters, rhythm dialogs, project picker, tree writes, calendar navigation/editing, real Focus handoff, standalone appearance and true quit/relaunch persistence. Report: `SYA-UI/_bmad-output/scheduler-task-tree/report.json`, started `2026-11-03T11:17:11.890Z`; renderer errors and remaining owned processes are both empty.
+- Actual Electron 42.3.3 / Chromium 148.0.7778.218, isolated `sya-tree-electron-58p5u2/profile`, real preload/IPC/FunctionHost and Python owner. Synthetic manual plan only, no model calls or private data. Compiled renderer `index-HXAeJDa2.js` SHA-256 `980b9c7d018b8ef2de12f576fa2aa0b54d809fdf394e74412a178dc70ff81fb9`; full main/preload/assets hashes and executable path are in the local report. Python launcher substitutes dependency bootstrap only. This verifies the source application, not an installed release or live model.
+
 ## 2026-10-29: Default SYA task module and project picker
 
 - The host `/schedule` route now opens this same planner directly. Removed the planner sidebar; placed New plan / My projects vertically beside the unchanged hero. The native popover supports hover, click, keyboard, Escape and constrained narrow-window positioning. All projects reuses the same completion calculation as the individual summary; choosing a card returns to its tree.

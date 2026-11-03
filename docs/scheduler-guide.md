@@ -1,5 +1,9 @@
 # Scheduler 模块说明与功能创新
 
+## 2026-11-03：与 SYA 页面对齐
+
+从 SYA 进入任务规划后，页面直接融入控制中心，顶部只保留主应用的一条绿色线。内部不再重复显示窗口外框和“任务规划”栏标题，节奏设置、搜索和语言切换仍在顶部。内容间距与状态、检索页面采用相同尺度，窄窗口自动收紧；原有任务树、课题进度和行动日历操作不变。独立 Scheduler 继续保留自己的窗口外观。
+
 ## 2026-10-29：统一 SYA 任务入口与课题切换
 
 SYA 的“规划任务”、控制中心“任务”及 `/schedule` 直接打开 Scheduler 界面；移除旧任务表单与“高级规划器”中间入口，沿用 Electron 的 `openSchedulerUi`、同源服务及同一持久化目录。主应用全局导航保留，Scheduler 模块内部不再显示左侧栏或任务树导航按钮。
@@ -8,7 +12,7 @@ SYA 的“规划任务”、控制中心“任务”及 `/schedule` 直接打开
 
 顶部作息和粒度入口、下方日周月行动日历、调整/延期与 Focus 交接继续复用原实现。浮层采用浏览器原生 [Popover API](https://developer.mozilla.org/en-US/docs/Web/API/Popover_API/Using)，交互参考 [WAI disclosure navigation](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-navigation/)，未增加组件依赖。
 
-本说明面向 SYA 项目成员、演示评审和后续开发者，说明 Scheduler 的作用、操作方式、工程设计与专注评估边界。基线为 2026 年 10 月 29 日的本地源码，功能范围以本模块需求和《Schedule_闫羽_补充实现与API对接》为依据。本轮仅完善 Scheduler 及其在 SYA-UI 中的呈现。
+本说明面向 SYA 项目成员、演示评审和后续开发者，说明 Scheduler 的作用、操作方式、工程设计与专注评估边界。基线为 2026 年 11 月 3 日的本地源码，功能范围以本模块需求和《Schedule_闫羽_补充实现与API对接》为依据。本轮仅完善 Scheduler 及其在 SYA-UI 中的呈现。
 
 Scheduler 把长期目标转换成有来源关系的四层任务树，再将尚未执行的工作放进可用作息。用户遇到任务过大或时间不足时，可以先看细化、合并和作息调整的影响，确认后保存。它提供计划与执行记录，不能独自判定用户的心理注意状态。
 
