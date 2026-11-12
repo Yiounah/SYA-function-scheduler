@@ -372,10 +372,11 @@ class GranularityPreviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     projectId: str | None = None
-    taskId: str = Field(min_length=1)
+    taskId: str = Field(default_factory=str, min_length=1, description="Required when requesting a draft.")
     level: str = Field(default="finer", description="Fixed finer/standard/coarser presets (25/45/90), or custom with targetMinutes.")
     reason: str | None = None
     focusSessionId: str | None = None
+    shouldSplit: bool = Field(default_factory=bool, strict=True, description="Monitor decision. Omit for manual adjustment.")
     targetMinutes: int | None = Field(default=None, strict=True, ge=5, le=120)
 
 
@@ -440,7 +441,8 @@ async def scheduler_preview_granularity(
     body: GranularityPreviewRequest,
     container: AppContainer = Depends(get_container),
 ) -> Any:
-    result = await preview_granularity(container, container.planner_desk, body.model_dump())
+    # Omitting the Monitor decision keeps the existing manual preview contract.
+    result = await preview_granularity(container, container.planner_desk, body.model_dump(exclude_unset=True))
     return _bridge_result(result)
 
 

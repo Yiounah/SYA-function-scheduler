@@ -111,15 +111,60 @@ class PlannerAcceptanceTests(unittest.TestCase):
         self.commit(original)
         first = leaves(original['tree'])[0]
         self.client.patch(f"/api/v1/tasks/{first['task_id']}/status", json={'status': 'IN_PROGRESS'})
-        response = self.client.post('/api/scheduler/granularity/preview', json={'taskId': first['task_id'], 'level': 'finer', 'reason': 'monitor-yellow', 'focusSessionId': 'focus-actual-1'})
+        response = self.client.post('/api/scheduler/granularity/preview', json={
+            'taskId': first['task_id'], 'shouldSplit': True, 'focusSessionId': 'focus-actual-1',
+            'reason': 'attention_decline', 'level': 'coarser', 'targetMinutes': 90,
+        })
         self.assertEqual(response.status_code, 200, response.text)
         draft = response.json()['data']
         kept = next(n for n in leaves(draft['tree']) if n['task_id'] == first['task_id'])
         self.assertEqual(kept['title'], first['title'])
         self.assertEqual(kept['status'], 'IN_PROGRESS')
         self.assertEqual(draft['context']['focusSessionId'], 'focus-actual-1')
+        self.assertEqual((draft['context']['level'], draft['context']['targetMinutes']), ('finer', 25))
         self.assertEqual(set(depths(draft['tree'])), {3})
         self.assertEqual(len(leaves(draft['tree'])), len(leaves(original['tree'])) + 1)
+
+    def test_monitor_false_and_invalid_decisions_do_not_generate_drafts(self):
+        original = self.sample()
+        self.commit(original)
+        path = Path(self.temp.name) / 'planner.json'
+        saved = path.read_bytes()
+        desk = self.app.state.container.planner_desk
+        events = list(desk.events)
+        task = leaves(original['tree'])[0]['task_id']
+        endpoint = '/api/scheduler/granularity/preview'
+        with patch('app.services.planner_desk.adjust') as split, patch('app.services.planner_desk.describe_pending_steps') as describe:
+            for scope in ({}, {'taskId': task, 'focusSessionId': 'focus-actual-1'}):
+                result = self.client.post(endpoint, json={**scope, 'shouldSplit': False})
+                self.assertEqual(result.status_code, 200)
+                self.assertEqual(result.json()['data'], {'shouldSplit': False, 'canCommit': False})
+            for invalid in ('false', 'true', 0, 1, None):
+                with self.subTest(invalid=invalid):
+                    result = self.client.post(endpoint, json={'taskId': task, 'focusSessionId': 'focus-actual-1', 'shouldSplit': invalid})
+                    self.assertEqual(result.status_code, 422)
+            for missing in ({}, {'shouldSplit': True, 'taskId': task}, {'shouldSplit': True, 'focusSessionId': 'focus-actual-1'}):
+                self.assertEqual(self.client.post(endpoint, json=missing).status_code, 422)
+            split.assert_not_called()
+            describe.assert_not_called()
+        self.assertFalse(desk.drafts)
+        self.assertEqual(list(desk.events), events)
+        self.assertEqual(path.read_bytes(), saved)
+
+    def test_monitor_on_active_stage_stays_within_that_stage(self):
+        original = self.sample()
+        stage = original['tree']['children'][0]
+        stage['status'] = 'IN_PROGRESS'
+        imported = self.client.post('/api/scheduler/plans/confirm', json={'tree': original['tree']})
+        self.assertEqual(imported.status_code, 200)
+        response = self.client.post('/api/scheduler/granularity/preview', json={
+            'taskId': stage['task_id'], 'focusSessionId': 'active-stage', 'shouldSplit': True,
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        draft = response.json()['data']
+        self.assertTrue(draft['canCommit'])
+        affected = {task for change in draft['changeSummary']['changes'] for task in change['sourceTaskIds']}
+        self.assertEqual(affected, {node['task_id'] for node in leaves(stage)})
 
     def test_routine_uses_same_commit_and_keeps_finished_slots(self):
         original = self.sample()

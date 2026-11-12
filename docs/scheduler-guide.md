@@ -93,6 +93,7 @@ SYA-UI 点击“规划任务”直接打开相同界面，Electron 提供统一�
 
 - `plans.preview`、`plans.commit`、`plans.cancel`：生成、确认及取消草案；确认携带 `expectedRevision` 与幂等 `requestId`。
 - `granularity.preview`：预设传 `level: finer | standard | coarser`，不传 `targetMinutes`，对应固定 25/45/90；自定义传 `level: custom` 和必填的 `targetMinutes: 5..120`。保留 `projectId`、`taskId`、外部原因和真实会话关联。旧客户端的“预设 + 非默认分钟”合法请求规范化为 custom，预览和保存后的 `todayGrain.level` 都如实标记自定义。
+- Monitor 交接使用布尔字段 `shouldSplit`。传 `false` 会直接返回 `{"shouldSplit":false,"canCommit":false}`，跳过模型和草案。传 `true` 时，宿主须提供已核实的 `taskId` 和 `focusSessionId`，Scheduler 按 25 分钟目标预览细拆。若指向执行中的清单，调整范围仅为同一子任务内尚未开始的步骤。用户确认后才写入。手动调节省略该字段。
 - `routine.preview`：接收工作窗口、目标日期、时区和工作休息周期，返回变更摘要与预排时段。
 - `tasks.tree`、`tasks.list`、`timeline.get`：回读所属项目、节点、进度和统一日程；日历的工作事件与休息段分别展示。
 - `schedule.granularity_applied`、`schedule.routine_applied` 等事件用于记录已采纳的调整；取消和单个检查点不能算作一次完整规划对话。

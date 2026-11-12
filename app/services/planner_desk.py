@@ -599,7 +599,16 @@ async def describe_pending_steps(container: AppContainer, root: TaskNode, ids: s
 
 
 async def preview_granularity(container: AppContainer, desk: PlannerDesk, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
-    task_id = str(body.get("taskId") or "")
+    monitor_split = body.get("shouldSplit")
+    if monitor_split is False:
+        return {"shouldSplit": False, "canCommit": False}
+    task_id = body.get("taskId")
+    if not task_id:
+        return failure(422, "INVALID_INPUT", "Choose a task for the granularity preview.")
+    if monitor_split is True:
+        if not (body.get("focusSessionId") or "").strip():
+            return failure(422, "INVALID_INPUT", "A Monitor split requires the current Focus session ID.")
+        body = {**body, "level": "finer", "targetMinutes": TARGETS["finer"]}
     level = {"fine": "finer", "coarse": "coarser"}.get(str(body.get("level")), str(body.get("level") or "finer"))
     # Older renderers combined a preset label with an explicit duration. Keep
     # accepting those calls, but report and save their actual custom choice.
@@ -618,7 +627,9 @@ async def preview_granularity(container: AppContainer, desk: PlannerDesk, body: 
     target = copied.find_node(task_id)
     warnings = []
     adjustment_id = task_id
-    if target.status == TaskStatus.IN_PROGRESS and target.parent_id:
+    # A Monitor session can also point at a stage or task. Its own pending
+    # descendants are already in scope; only a running leaf needs siblings.
+    if target.status == TaskStatus.IN_PROGRESS and target.parent_id and (target.is_leaf or monitor_split is None):
         target = copied.find_node(target.parent_id)
         adjustment_id = target.task_id
         warnings.append("The running checklist item and its Focus session are preserved; only unstarted sibling steps are adjusted.")

@@ -862,7 +862,7 @@
     "/api/scheduler/granularity/preview": {
       "post": {
         "operationId": "granularity.preview",
-        "summary": "Preview fixed 25/45/90-minute presets or an independent custom target",
+        "summary": "Preview a manual duration change or a Monitor-requested split",
         "responses": {
           "200": {
             "description": "Function response",
@@ -877,7 +877,27 @@
                       "type": "object",
                       "properties": {
                         "data": {
-                          "$ref": "#/components/schemas/PlanDraft"
+                          "oneOf": [
+                            {
+                              "$ref": "#/components/schemas/PlanDraft"
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "shouldSplit",
+                                "canCommit"
+                              ],
+                              "properties": {
+                                "shouldSplit": {
+                                  "const": false
+                                },
+                                "canCommit": {
+                                  "const": false
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       }
                     }
@@ -903,9 +923,6 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "taskId"
-                ],
                 "properties": {
                   "projectId": {
                     "type": "string"
@@ -937,40 +954,71 @@
                     "minimum": 5,
                     "maximum": 120,
                     "description": "Required for custom: integer 5–120. Presets are fixed at 25/45/90; a legacy preset request with a different explicit duration is treated as custom. The returned context.level identifies the normalized choice."
+                  },
+                  "shouldSplit": {
+                    "type": "boolean",
+                    "description": "Omit for manual adjustments. False skips without a draft. True previews a 25-minute finer split for the supplied Focus task and session."
                   }
                 },
-                "allOf": [
-                  {
-                    "oneOf": [
-                      {
-                        "properties": {
-                          "level": {
-                            "enum": [
-                              "custom"
-                            ]
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "targetMinutes"
-                        ]
+                "if": {
+                  "required": [
+                    "shouldSplit"
+                  ]
+                },
+                "then": {
+                  "if": {
+                    "properties": {
+                      "shouldSplit": {
+                        "const": true
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "taskId",
+                      "focusSessionId"
+                    ],
+                    "properties": {
+                      "focusSessionId": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      }
+                    }
+                  }
+                },
+                "else": {
+                  "required": [
+                    "taskId"
+                  ],
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "level": {
+                          "enum": [
+                            "custom"
+                          ]
+                        }
                       },
-                      {
-                        "properties": {
-                          "level": {
-                            "enum": [
-                              "finer",
-                              "standard",
-                              "coarser",
-                              "fine",
-                              "coarse"
-                            ]
-                          }
+                      "required": [
+                        "level",
+                        "targetMinutes"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "level": {
+                          "enum": [
+                            "finer",
+                            "standard",
+                            "coarser",
+                            "fine",
+                            "coarse"
+                          ]
                         }
                       }
-                    ]
-                  }
-                ]
+                    }
+                  ]
+                }
               }
             }
           }

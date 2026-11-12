@@ -90,7 +90,7 @@ repo: `SYA-function-scheduler` (SYA-UI submodule `function/scheduler`)
 本次用户明确采纳《Schedule_闫羽_补充实现与API对接》中的 MVP 要求，扩展原先仅限独立时间轴的范围；保留原 SCH 编号，不将父项目其它功能自动视为已交付。
 
 - S1/S2：四层树显式区分项目与任务；日、周、月共用 `timeline.get` 的真实时间数据，浏览和切换项目不改活动树或复制任务。
-- S3/S4/S5：`granularity.preview` 与 `routine.preview` 返回草案；Monitor 黄色路径和手动入口复用确认流程，取消不写正式计划。
+- S3/S4/S5：手动作息与粒度调节返回可确认的草案。Monitor 交接的 `shouldSplit` 为假时跳过拆分，为真时按当前 Focus 任务和会话预览 25 分钟细拆，确认后更新待办清单。手动粒度入口省略此字段，继续支持四种时长选项。
 - S6：`plans.preview` 不写正式树；`plans.commit` 校验 `expectedRevision` 与幂等 `requestId`。旧版本、过期草案、被取消草案及复用到其它草案的请求编号均被拒绝。任务状态与作息修改也推进版本。正式树、进度、排期、配置和已确认请求回执在配置的数据目录持久化。
 - S7：主 APP 通过 Focus owner 开始、暂停、恢复和结束会话。结束计时不代表完成任务，不创建第二套会话编号。Deep Search 从 Scheduler 回读任务，恢复操作返回 Focus；Gatekeeper 读取需要的任务上下文。
 - S8：展示生成中、取消、错误与重试；示例需主动选择并标识。记录生成、确认、粒度请求/采纳及任务完成事件，拒绝不计为采纳。
