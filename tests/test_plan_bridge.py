@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-os.environ["SYA_OPENAI_API_KEY"] = ""
+os.environ["SYA_SCHEDULER_MODEL_KEY"] = ""
 
 from fastapi.testclient import TestClient
 

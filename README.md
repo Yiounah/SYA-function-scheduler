@@ -223,11 +223,9 @@ npm run app:dev
 - `npm run app:dev`：开发模式，直接打开当前源码。改完再运行一次即可看到更新。
 - `npm run app:dist:mac`：打包模式，生成别人也能安装的 `release/*.dmg`。包里是打包那一刻的代码，之后改源码要重新打包。
 
-要用项目实际可用的模型做真正拆解时：到 [智谱开放平台](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) 创建 Key，填进 `.env` 的 `SYA_OPENAI_API_KEY=`，然后重新运行 `npm run app:dev`。
+Scheduler 使用 gpt-6.1-sol 拆解目标并预览待办步骤的调整。模型连接保存在当前用户专用的 `~/.config/sya/scheduler/model.env`（权限 600）。该文件使用 `SYA_SCHEDULER_MODEL_KEY`、`SYA_SCHEDULER_MODEL_BASE_URL` 和 `SYA_SCHEDULER_MODEL_NAME` 三个专用配置项。在需要启用的 Scheduler 工作目录的 `.env` 中设置 `SYA_SCHEDULER_PRIVATE_MODEL=true` 后，重启对应服务。独立版与 SYA-UI 内嵌版可共用这份私有配置。
 
-SYA-UI 内嵌服务读取其 `function/scheduler/.env`；它与独立仓库的 `.env` 是两个本地文件。配置后重启相应应用才能生效。真实 Key 仅保存在 Git 忽略的本地配置中，不写入 renderer、文档或示例文件。
-
-规划预览失败会返回固定诊断码：`MODEL_NOT_CONFIGURED` 表示未配置 Key，`MODEL_AUTH_FAILED` 表示 Key 或模型访问权限被拒绝，`MODEL_RATE_LIMITED` 表示限流，`MODEL_TIMEOUT` 表示超时，`MODEL_RESPONSE_INVALID` 表示回复为空、截断或不是有效 JSON，其余模型服务失败使用 `MODEL_UNAVAILABLE`。这些失败不会自动保存示例计划，也不把供应商响应正文或密钥返回页面。当前 GLM-5.3 请求保留 `thinking.type=enabled` 和 `reasoning_effort=low`，符合[智谱官方模型说明](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3)。
+规划预览失败会返回固定诊断码：`MODEL_NOT_CONFIGURED` 表示未配置 Key，`MODEL_AUTH_FAILED` 表示 Key 或模型访问权限被拒绝，`MODEL_RATE_LIMITED` 表示限流，`MODEL_TIMEOUT` 表示超时，`MODEL_RESPONSE_INVALID` 表示回复为空、截断或不是有效 JSON，其余模型服务失败使用 `MODEL_UNAVAILABLE`。这些失败不会自动保存示例计划，也不把供应商响应正文或密钥返回页面。
 
 ## 仓库结构
 

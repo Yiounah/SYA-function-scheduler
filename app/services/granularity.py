@@ -1,4 +1,4 @@
-"""Explainable duration-based edits; never claim to invent semantic subtasks."""
+"""Bounded changes to pending work units with stable lineage and total effort."""
 from __future__ import annotations
 
 import math
@@ -55,7 +55,7 @@ def _split(node: TaskNode, target: int) -> list[TaskNode]:
         piece.estimated_time = (whole + (index < extra)) / 60 if index < count - 1 else node.estimated_time - used_hours
         used_hours += piece.estimated_time
         piece.title = f'{title} · Part {index + 1}/{count}'
-        piece.source_task_ids = list(_sources(node))
+        piece.source_task_ids = list(dict.fromkeys([*_sources(node), node.task_id]))
         # The draft explains this mechanical edit once. Preserve the user's
         # instructions rather than repeatedly appending a generated disclaimer.
         pieces.append(piece)
@@ -86,7 +86,7 @@ def _rewrite(run: list[TaskNode], level: str, target: int) -> list[TaskNode]:
     return result
 
 
-def adjust(root: TaskNode, task_id: str, level: str, target: int) -> dict[str, Any]:
+def adjust(root: TaskNode, task_id: str, level: str, target: int, *, eligible: set[str] | None = None) -> dict[str, Any]:
     """Modify a copied tree and return a whole-project before/after summary."""
     before = list(root.iter_leaves())
     before_data = {n.task_id: n.model_dump() for n in before}
@@ -106,6 +106,8 @@ def adjust(root: TaskNode, task_id: str, level: str, target: int) -> dict[str, A
                     break
                 selected.add(neighbour.task_id)
                 used += neighbour.estimated_time * 60
+    if eligible is not None:
+        selected.intersection_update(eligible)
     changes = []
     affected = set()
     for parent in list(root.iter_nodes()):
@@ -119,7 +121,7 @@ def adjust(root: TaskNode, task_id: str, level: str, target: int) -> dict[str, A
             if [n.model_dump() for n in run] != [n.model_dump() for n in rewritten]:
                 rewritten_data = {n.task_id: n.model_dump() for n in rewritten}
                 affected.update(n.task_id for n in run if rewritten_data.get(n.task_id) != n.model_dump())
-                changes.append({'sourceTaskIds': list(dict.fromkeys(source for n in run for source in _sources(n))), 'beforeTitles': [n.title for n in run], 'afterTitles': [n.title for n in rewritten], 'beforeMinutes': round(sum(n.estimated_time for n in run) * 60, 6), 'afterMinutes': round(sum(n.estimated_time for n in rewritten) * 60, 6)})
+                changes.append({'sourceTaskIds': list(dict.fromkeys(source for n in run for source in _sources(n))), 'afterTaskIds': [n.task_id for n in rewritten], 'beforeTitles': [n.title for n in run], 'afterTitles': [n.title for n in rewritten], 'beforeMinutes': round(sum(n.estimated_time for n in run) * 60, 6), 'afterMinutes': round(sum(n.estimated_time for n in rewritten) * 60, 6)})
             result.extend(rewritten)
             run.clear()
         for child in parent.children:

@@ -2,8 +2,8 @@
   "llm": {
     "provider": "openai-compatible",
     "apiKey": "",
-    "model": "glm-5.3",
-    "baseUrl": "https://open.bigmodel.cn/api/paas/v4"
+    "model": "gpt-6.1-sol",
+    "baseUrl": ""
   },
   "storage": {
     "dbPath": "memory://sya-task-tree"

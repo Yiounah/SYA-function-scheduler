@@ -38,10 +38,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     settings = get_settings()
     logging.getLogger("uvicorn.error").info(
-        "LLM configured model=%s base_url=%s api_key_set=%s",
-        settings.openai_model,
-        settings.openai_base_url,
-        bool(settings.openai_api_key),
+        "Scheduler model=%s configured=%s",
+        settings.scheduler_model_name,
+        bool(settings.scheduler_model_key and settings.scheduler_model_base_url),
     )
     container = build_container(settings)
     container.register()

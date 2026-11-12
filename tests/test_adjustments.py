@@ -301,3 +301,37 @@ class AdjustmentAPITests(unittest.TestCase):
         self.assertEqual(before['events'][0]['start'], '14:00')
         self.assertEqual(self.client.put('/api/scheduler/config', json={'focusflow': {'workLog': []}}).status_code, 200)
         self.assertEqual(before, self.client.get('/api/scheduler/timeline', params={'projectId': 'all'}).json()['data'])
+
+    def test_routine_model_preview_protects_execution_and_commits_reviewed_steps(self):
+        from unittest.mock import AsyncMock, patch
+        from app.core.llm.gateway import PlanningModelError
+
+        root = tree((75, 25))
+        root.children[0].children[0].children[1].status = TaskStatus.IN_PROGRESS
+        self.assertEqual(self.client.post('/api/scheduler/plans/confirm',
+                                          json={'tree': root.model_dump(mode='json')}).status_code, 200)
+        before = self.client.get('/api/v1/projects').json()
+        gateway = self.app.state.container.llm_gateway
+        routine = {'focusMinutes': 25, 'date': date.today().isoformat()}
+        async def rename(goal, steps, context):
+            self.assertEqual(context['routine']['focusMinutes'], 25)
+            self.assertEqual(len(steps), 3)
+            self.assertTrue(all(s['id'] != 'p-1' for s in steps))
+            return {s['id']: f'Review section {i}' for i, s in enumerate(steps, 1)}
+        with patch.object(gateway, '_api_key', 'fixture'), patch.object(gateway, '_base_url', 'http://test.invalid'):
+            with patch.object(gateway, 'replan_steps', AsyncMock(side_effect=PlanningModelError('MODEL_UNAVAILABLE'))):
+                response = self.client.post('/api/scheduler/routine/preview', json=routine)
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(self.client.get('/api/v1/projects').json(), before)
+            with patch.object(gateway, 'replan_steps', AsyncMock(side_effect=rename)) as model:
+                draft = self.preview('routine', routine)
+                model.assert_awaited_once()
+            self.assertEqual(draft['generationMode'], 'model')
+            self.assertEqual(draft['changeSummary']['changes'][0]['afterTitles'],
+                             ['Review section 1', 'Review section 2', 'Review section 3'])
+            self.assertEqual(self.client.get('/api/v1/projects').json(), before)
+            self.assertEqual(self.commit(draft, 'model-routine').status_code, 200)
+            store = self.app.state.container.memory_store
+            saved = self.client.portal.call(store.list_projects)[0].tree
+            self.assertEqual([n.title for n in saved.iter_leaves()], ['Review section 1', 'Review section 2', 'Review section 3', 'Action 1'])
+            self.assertEqual(saved.find_node('p-1').status, TaskStatus.IN_PROGRESS)

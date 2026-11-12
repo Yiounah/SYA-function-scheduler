@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(_ROOT / ".env", override=False)
+_PRIVATE_MODEL = Path.home() / ".config" / "sya" / "scheduler" / "model.env"
 
 
 class Settings(BaseSettings):
@@ -35,9 +35,10 @@ class Settings(BaseSettings):
     event_history_maxlen: int = Field(default=2000, ge=100)
     ws_ping_interval_seconds: int = Field(default=20, ge=5)
 
-    openai_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
-    openai_api_key: str = ""
-    openai_model: str = "glm-5.3"
+    scheduler_private_model: bool = False
+    scheduler_model_base_url: str = Field(default="", repr=False, exclude=True)
+    scheduler_model_key: str = Field(default="", repr=False, exclude=True)
+    scheduler_model_name: str = "gpt-6.1-sol"
     llm_timeout_seconds: int = Field(default=90, ge=5)
 
     @model_validator(mode="after")
@@ -53,4 +54,7 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a cached settings object for dependency injection."""
-    return Settings()
+    settings = Settings()
+    if settings.scheduler_private_model or getattr(sys, "frozen", False):
+        return Settings(_env_file=(_PRIVATE_MODEL, _ROOT / ".env"))
+    return settings

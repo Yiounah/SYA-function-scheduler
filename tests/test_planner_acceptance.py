@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-os.environ['SYA_OPENAI_API_KEY'] = ''
+os.environ['SYA_SCHEDULER_MODEL_KEY'] = ''
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

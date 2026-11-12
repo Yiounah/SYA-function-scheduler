@@ -38,7 +38,7 @@ FocusFlow is the user-facing desktop app in this repository and the SYA schedule
 - CI pins Node `22.17.1` from `.nvmrc`. Local framework verification also requires Git, uv, Python `>=3.11`, Node `>=22.12.0`, npm `>=10.9.0`, and network access or populated `npx` caches.
 - App checks are `npm test`: Python unittest discovery plus `node --check` on the Electron shell. macOS packaging is `npm run app:dist:mac` and is not part of the read-only PR gate.
 - A green unittest run proves the in-process service and task tree. It does not prove a packaged `.dmg`, code signing, or a live model provider.
-- Without `SYA_OPENAI_API_KEY`, new preview journeys return a model-unavailable error unless the user explicitly selects sample mode. Legacy init/decompose keep their sample compatibility path. Neither path is evidence of a live model call.
+- Without a configured Scheduler model, new preview journeys return a model-unavailable error unless the user explicitly selects sample mode. Legacy init/decompose keep their sample compatibility path. Neither path is evidence of a live model call.
 
 ## Conventions That Differ From Defaults
 

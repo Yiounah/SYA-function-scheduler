@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-os.environ["SYA_OPENAI_API_KEY"] = ""
+os.environ["SYA_SCHEDULER_MODEL_KEY"] = ""
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -44,7 +44,7 @@ def nodes(tree):
 class TaskTreeOrderTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
-        self.environment = patch.dict(os.environ, {"SYA_SCHEDULER_DATA_DIR": self.directory.name, "SYA_OPENAI_API_KEY": ""})
+        self.environment = patch.dict(os.environ, {"SYA_SCHEDULER_DATA_DIR": self.directory.name, "SYA_SCHEDULER_MODEL_KEY": ""})
         self.environment.start()
         self.start()
 

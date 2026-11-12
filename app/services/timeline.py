@@ -102,8 +102,8 @@ def scheduler_config(settings: Any) -> dict[str, Any]:
         "llm": {
             "provider": "openai-compatible",
             "apiKey": "",
-            "model": settings.openai_model,
-            "baseUrl": settings.openai_base_url,
+            "model": settings.scheduler_model_name,
+            "baseUrl": "",
         },
         "storage": {"dbPath": "memory://sya-task-tree"},
         "decompose": {

@@ -55,9 +55,9 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
     """OpenAI-format client with deterministic fallback for offline development."""
 
     def __init__(self, settings: Settings) -> None:
-        self._base_url = settings.openai_base_url.rstrip("/")
-        self._api_key = settings.openai_api_key
-        self._model = settings.openai_model
+        self._base_url = settings.scheduler_model_base_url.rstrip("/")
+        self._api_key = settings.scheduler_model_key
+        self._model = settings.scheduler_model_name
         self._timeout_seconds = settings.llm_timeout_seconds
 
     async def generate_task_tree(
@@ -72,10 +72,10 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
     ) -> dict[str, Any]:
         """Generate decomposition tree via OpenAI API format or local fallback."""
 
-        if not self._api_key:
+        if not self.configured:
             if not allow_mock:
                 raise PlanningModelError("MODEL_NOT_CONFIGURED")
-            logger.warning("LLM API key is empty; using local mock plan")
+            logger.warning("LLM is not configured; using local mock plan")
             return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
 
         system_prompt = (
@@ -85,38 +85,45 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
         )
         user_prompt = self._compose_prompt(goal, persona, strategy, context)
 
-        payload = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.2,
-            "thinking": {"type": "enabled"},
-            "reasoning_effort": "low",
-            "max_tokens": 4096,
-        }
-
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+            return await self._request_json(system_prompt, user_prompt)
+        except PlanningModelError:
+            if not allow_mock:
+                raise
+            logger.warning("Using the legacy local mock plan")
+            return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._api_key and self._base_url)
+
+    async def _request_json(self, instructions: str, prompt: str) -> dict[str, Any]:
+        if not self.configured:
+            raise PlanningModelError("MODEL_NOT_CONFIGURED")
+        payload = {
+            "model": self._model, "instructions": instructions,
+            "input": [{"role": "user", "content": f"Return one JSON object.\n{prompt}"}],
+            "text": {"format": {"type": "json_object"}}, "store": False,
+        }
+        # HTTPX normally logs the full request URL. This process is the private
+        # Scheduler sidecar; provider addresses must never enter desktop logs.
+        for name in ("httpx", "httpcore"):
+            logging.getLogger(name).setLevel(logging.WARNING)
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_seconds, trust_env=False) as client:
                 response = await client.post(
-                    f"{self._base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
+                    f"{self._base_url}/responses",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
                     json=payload,
                 )
                 response.raise_for_status()
-                response_payload = response.json()
-
-            choice = response_payload["choices"][0]
-            if choice.get("finish_reason") == "length":
-                raise ValueError("LLM output was truncated")
-            content = choice["message"].get("content")
-            if not content:
-                raise ValueError("LLM returned empty content")
+                result = response.json()
+            if result.get("status") != "completed":
+                raise ValueError("Incomplete response")
+            content = "".join(
+                part["text"] for item in result["output"] if item.get("type") == "message"
+                for part in item["content"] if part.get("type") == "output_text"
+            )
             return self._load_json_content(content)
         except Exception as exc:
             code = "MODEL_UNAVAILABLE"
@@ -129,14 +136,28 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
                     code = "MODEL_RATE_LIMITED"
             elif isinstance(exc, httpx.TimeoutException):
                 code = "MODEL_TIMEOUT"
-            elif isinstance(exc, (ValueError, KeyError, IndexError, TypeError)):
+            elif isinstance(exc, (ValueError, KeyError, IndexError, TypeError, AttributeError)):
                 code = "MODEL_RESPONSE_INVALID"
             # Provider response bodies can contain private input; expose fixed diagnostics only.
             logger.warning("Planning model request failed: code=%s http_status=%s", code, status)
-            if not allow_mock:
-                raise PlanningModelError(code) from exc
-            logger.warning("Using the legacy local mock plan")
-            return self._mock_plan(goal=goal, persona=persona, strategy=strategy, context=context)
+            raise PlanningModelError(code) from None
+
+    async def replan_steps(self, goal: str, steps: list[dict], context: dict) -> dict[str, str]:
+        """Give bounded pending work units concrete actions without delegating tree edits."""
+        instructions = (
+            "You revise the pending steps of a project. For each work unit write a concise "
+            "action with a concrete deliverable that fits its fixed minutes. Split broad work "
+            "into successive distinct actions or combine related work as indicated. Preserve "
+            "the original intent, language and requirements. Return a JSON object mapping "
+            "each supplied id to its new title. Return exactly those ids."
+        )
+        result = await self._request_json(instructions, json.dumps(
+            {"goal": goal, "work_units": steps, "adjustment": context}, ensure_ascii=False))
+        if set(result) != {step["id"] for step in steps} or any(
+            not isinstance(title, str) or not title.strip() or len(title) > 500 for title in result.values()
+        ):
+            raise PlanningModelError("MODEL_RESPONSE_INVALID")
+        return {key: title.strip() for key, title in result.items()}
 
     def _compose_prompt(
         self,
@@ -163,7 +184,7 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
     async def translate_nodes(self, *, target: str, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Translate task titles and descriptions. The stored plan itself stays unchanged."""
 
-        if not nodes or not self._api_key:
+        if not nodes or not self.configured:
             return nodes
 
         language = "Simplified Chinese" if target == "zh" else "English"
@@ -177,33 +198,12 @@ class OpenAICompatiblePlannerGateway(LLMPlannerGateway):
             'Return {"nodes": [{"task_id", "title", "description"}]}.\n'
             f"{json.dumps({'nodes': nodes}, ensure_ascii=False)}"
         )
-        payload = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.2,
-            "thinking": {"type": "enabled"},
-            "reasoning_effort": "low",
-            "max_tokens": 4096,
-        }
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                response = await client.post(
-                    f"{self._base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                )
-                response.raise_for_status()
-                content = response.json()["choices"][0]["message"].get("content")
-            parsed = self._load_json_content(content or "")
-        except Exception:
-            logger.exception("Task translation failed; source wording will be kept")
+            parsed = await self._request_json(system_prompt, user_prompt)
+            if not isinstance(parsed.get("nodes"), list):
+                raise PlanningModelError("MODEL_RESPONSE_INVALID")
+        except PlanningModelError:
+            logger.warning("Task translation failed; source wording will be kept")
             return nodes
 
         translated = {

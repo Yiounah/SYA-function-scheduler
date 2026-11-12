@@ -248,6 +248,7 @@ async def restore_desk(container: AppContainer, desk: PlannerDesk) -> None:
     desk.revision = int(raw.get("revision") or 0)
     desk.disk_revision = desk.revision
     desk.overrides = dict(raw.get("config") or {})
+    desk.overrides.pop("llm", None)
     desk.commits = dict(raw.get("commits") or {})
     desk.events = deque(raw.get("events") or [], maxlen=2000)
     desk.slots = list(raw.get("slots") or [])
@@ -295,7 +296,6 @@ def config_view(container: AppContainer, desk: PlannerDesk) -> dict[str, Any]:
             config[key].update(value)
         else:
             config[key] = value
-    config["llm"]["apiKey"] = ""
     config.update({key: value for key, value in routine_view(desk.overrides).items() if key in {*CYCLE_DEFAULTS, 'routineCycleConfigured', 'availableMinutesPerDay'}})
     return config
 
@@ -316,7 +316,7 @@ def _preserves_execution(old: TaskNode, new: TaskNode) -> bool:
 def _merge_config(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(current)
     for key, value in patch.items():
-        if value is None:
+        if key == "llm" or value is None:
             continue
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
             merged[key].update(value)
@@ -414,7 +414,7 @@ async def preview_plan(container: AppContainer, desk: PlannerDesk, body: dict[st
         try:
             tree_json = _sample_tree(goal) if sample else await container.llm_gateway.generate_task_tree(
                 goal=goal, persona=persona, strategy=None,
-                context={"cognitive_phase": "intent_capture", "goal": goal, "projectId": body.get("projectId"), "granularity": body.get("granularity"), "availability": config, "timezone": config.get("timezone", "Asia/Shanghai"), "deadline_days": body.get("deadline_days"), "shape": "goal -> stage -> task -> leaf", "existing_tree": owner.tree.model_dump(mode="json") if owner else None},
+                context={"cognitive_phase": "intent_capture", "goal": goal, "projectId": body.get("projectId"), "granularity": body.get("granularity"), "availability": routine_snapshot(config), "timezone": config.get("timezone", "Asia/Shanghai"), "deadline_days": body.get("deadline_days"), "shape": "goal -> stage -> task -> leaf", "existing_tree": owner.tree.model_dump(mode="json") if owner else None},
                 response_schema=_plan_schema(),
                 allow_mock=False,
             )
@@ -539,6 +539,14 @@ async def commit_draft(container: AppContainer, desk: PlannerDesk, draft_id: str
             projects = [project if p.voyage.voyage_id == project_id else p for p in projects]
             if owner is None:
                 projects.append(project)
+        if draft.get("updatedTrees"):
+            revised = []
+            for project in projects:
+                tree = draft["updatedTrees"].get(project.voyage.voyage_id, project.tree)
+                if not _preserves_execution(project.tree, tree):
+                    return failure(409, "PROTECTED_TASK", "Work already started must keep its progress.")
+                revised.append(PlannedProject(project.voyage, tree))
+            projects = revised
         old_config, old_events = desk.overrides, list(desk.events)
         if draft.get("config") is not None:
             desk.overrides = copy.deepcopy(draft["config"])
@@ -575,6 +583,21 @@ async def commit_draft(container: AppContainer, desk: PlannerDesk, draft_id: str
         return result
 
 
+async def describe_pending_steps(container: AppContainer, root: TaskNode, ids: set[str], context: dict) -> None:
+    """Only replace titles on the private draft. The scheduler owns IDs, time and progress."""
+    nodes = {n.task_id: n for n in root.iter_nodes()}
+    steps = [
+        {"id": n.task_id, "title": n.title, "description": n.description,
+         "task": nodes[n.parent_id].title if n.parent_id in nodes else root.title,
+         "minutes": minutes(n.estimated_time)}
+        for n in root.iter_leaves() if n.task_id in ids and adjustable(n)
+    ]
+    for start in range(0, len(steps), 24):
+        titles = await container.llm_gateway.replan_steps(root.title, steps[start:start + 24], context)
+        for task_id, title in titles.items():
+            nodes[task_id].title = title
+
+
 async def preview_granularity(container: AppContainer, desk: PlannerDesk, body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
     task_id = str(body.get("taskId") or "")
     level = {"fine": "finer", "coarse": "coarser"}.get(str(body.get("level")), str(body.get("level") or "finer"))
@@ -590,6 +613,7 @@ async def preview_granularity(container: AppContainer, desk: PlannerDesk, body: 
     owner = next((p for p in projects if p.tree.find_node(task_id)), None)
     if owner is None or body.get("projectId") and body["projectId"] not in {owner.voyage.voyage_id, owner.tree.task_id}:
         return failure(404, "TASK_NOT_FOUND", "Choose a saved task in this project before adjusting grain.")
+    base_revision = desk.revision
     copied = owner.tree.model_copy(deep=True)
     target = copied.find_node(task_id)
     warnings = []
@@ -601,10 +625,26 @@ async def preview_granularity(container: AppContainer, desk: PlannerDesk, body: 
     if not any(adjustable(n) for n in target.iter_leaves()):
         return failure(409, "NO_PENDING_TASKS", "Only unstarted, unfinished work can be adjusted.")
     summary = adjust(copied, adjustment_id, level, target_duration)
-    warnings.append('Duration-based adjustment only; review each concrete next action before confirming. No model or semantic decomposition was used.')
+    mode = "deterministic"
+    if summary["changed"] and container.llm_gateway.configured:
+        original = {n.task_id: n for n in owner.tree.iter_leaves()}
+        changed = {n.task_id for n in copied.iter_leaves() if original.get(n.task_id) != n}
+        try:
+            await describe_pending_steps(container, copied, changed, {
+                "level": level, "targetMinutes": target_duration, "reason": body.get("reason"),
+            })
+        except PlanningModelError as exc:
+            return failure(422, exc.code, str(exc))
+        for change in summary["changes"]:
+            change["afterTitles"] = [copied.find_node(key).title for key in change["afterTaskIds"]]
+        mode = "model"
+    elif summary["changed"]:
+        warnings.append('Duration-based adjustment only; review each concrete next action before confirming.')
+    if base_revision != desk.revision:
+        return failure(409, "STALE_DRAFT", "Tasks changed during preview. Reload and try again.")
     if not summary['changed']:
         warnings.append('Existing steps already fit this duration, or no adjacent unstarted steps can be combined. The plan will not be changed.')
-    draft_id, draft = _new_draft(desk, root=copied, projects=projects, project=owner, kind="granularity", revision=desk.revision, taskId=task_id, level=level, targetMinutes=target_duration, reason=body.get("reason"), focusSessionId=body.get("focusSessionId"), changeSummary=summary, canCommit=summary['changed'])
+    draft_id, draft = _new_draft(desk, root=copied, projects=projects, project=owner, kind="granularity", revision=base_revision, generationMode=mode, taskId=task_id, level=level, targetMinutes=target_duration, reason=body.get("reason"), focusSessionId=body.get("focusSessionId"), changeSummary=summary, canCommit=summary['changed'])
     payload = draft_payload(desk, draft_id, copied, warnings)
     payload["events"] = [{"name": "schedule.granularity_requested", "taskId": task_id, "level": level, "draftId": draft_id}]
     payload["context"] = {key: draft.get(key) for key in ("taskId", "level", "targetMinutes", "reason", "focusSessionId")}
@@ -630,8 +670,60 @@ async def preview_routine(container: AppContainer, desk: PlannerDesk, body: dict
         return failure(404, "PROJECT_NOT_FOUND", "Choose an existing project.")
     # A routine is shared by every project, so disclose all affected work.
     before_slots = build_slots(projects, desk.overrides, desk.slots)
-    draft_id, draft = _new_draft(desk, root=None, projects=projects, project=None, kind="routine", revision=desk.revision, config=config)
+    base_revision = desk.revision
+    updated_trees = {}
+    changes = []
+    proposed = list(projects)
+    old_routine = routine_snapshot(routine_on(desk.overrides, effective))
+    new_routine = routine_snapshot(config)
+    if container.llm_gateway.configured and old_routine != new_routine:
+        next_slots = build_slots(projects, config, desk.slots)
+        moved = set(calendar_changes(before_slots, next_slots, config)["movedTaskIds"])
+        # A checklist with any work before the effective date keeps its identity and history.
+        future = {s["taskId"] for s in next_slots if s.get("taskId")}
+        for slot in before_slots + next_slots:
+            if slot.get("taskId") and datetime.fromisoformat(slot["startTime"]).astimezone(zone).date() < effective:
+                future.discard(slot["taskId"])
+        for index, project in enumerate(projects):
+            root = project.tree.model_copy(deep=True)
+            original = {n.task_id: n for n in project.tree.iter_leaves()}
+            eligible = future.intersection(original)
+            for node in project.tree.iter_nodes():
+                if not adjustable(node):
+                    eligible.difference_update(n.task_id for n in node.iter_leaves())
+            if not eligible:
+                continue
+            summary = adjust(root, root.task_id, "finer", config["focusMinutes"], eligible=eligible)
+            resized = {n.task_id for n in root.iter_leaves() if original.get(n.task_id) != n}
+            reconsider = eligible if old_routine.get("rest") != new_routine.get("rest") else eligible & moved
+            ids = resized | reconsider
+            if not ids:
+                continue
+            try:
+                await describe_pending_steps(container, root, ids, {"routine": new_routine})
+            except PlanningModelError as exc:
+                return failure(422, exc.code, str(exc))
+            for change in summary["changes"]:
+                change["afterTitles"] = [root.find_node(key).title for key in change["afterTaskIds"]]
+            changes.extend(summary["changes"])
+            covered = {key for change in summary["changes"] for key in change["afterTaskIds"]}
+            for key in sorted(reconsider - covered):
+                revised = root.find_node(key)
+                if revised.title != original[key].title:
+                    duration = minutes(revised.estimated_time)
+                    changes.append({"beforeTitles": [original[key].title], "afterTitles": [revised.title],
+                                    "beforeMinutes": duration, "afterMinutes": duration})
+            if root != project.tree:
+                proposed[index] = PlannedProject(project.voyage, root)
+                updated_trees[project.voyage.voyage_id] = root
+    if base_revision != desk.revision:
+        return failure(409, "STALE_DRAFT", "Tasks changed during preview. Reload and try again.")
+    projects = proposed
+    draft_id, draft = _new_draft(desk, root=None, projects=projects, project=None, kind="routine",
+                                 revision=base_revision, config=config, updatedTrees=updated_trees,
+                                 generationMode="model" if updated_trees else "deterministic")
     summary = calendar_changes(before_slots, draft['slots'], config)
+    summary["changes"] = changes
     affected = [{"taskId": n.task_id, "title": n.title, "projectId": p.voyage.voyage_id, "moved": n.task_id in summary['movedTaskIds']} for p in projects for n in p.tree.iter_leaves() if adjustable(n) and any(s.get('taskId') == n.task_id and datetime.fromisoformat(s['endTime']).astimezone(zone).date() >= effective for s in draft['slots'])]
     summary.update({'affectedCount': len(affected), 'preservedCount': sum(not adjustable(n) for p in projects for n in p.tree.iter_leaves())})
     # A routine can be meaningfully saved before any project exists.
@@ -664,8 +756,6 @@ async def update_config(container: AppContainer, desk: PlannerDesk, body: dict[s
             # today's routine, but cannot inject or overwrite its audit map.
             patch = {key: value for key, value in body.items() if key not in {'routineHistory', 'routineDate'}}
             config = normalize_routine(previous, patch)
-            if isinstance(config.get("llm"), dict):
-                config["llm"].pop("apiKey", None)
             validate_routine(config)
             if previous.get('routineHistory') and routine_snapshot(previous) != routine_snapshot(config):
                 effective = datetime.now(ZoneInfo(str(config.get('timezone') or 'Asia/Shanghai'))).date()

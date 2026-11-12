@@ -81,22 +81,30 @@ function fixtureTree(goal) {
   ] };
 }
 const provider = createServer(async (request, response) => {
-  if (request.method !== 'POST' || request.url !== '/v1/chat/completions') { response.writeHead(404).end(); return; }
+  if (request.method !== 'POST' || request.url !== '/v1/responses') { response.writeHead(404).end(); return; }
   let body = '';
   for await (const chunk of request) body += chunk;
   const payload = JSON.parse(body);
-  const system = payload.messages?.[0]?.content || '';
-  const prompt = payload.messages?.[1]?.content || '';
+  const system = payload.instructions || '';
+  const prompt = payload.input[0].content || '';
+  const send = (value) => response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+    status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] }],
+  }));
+  if (system.includes('pending steps')) {
+    const steps = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)).work_units;
+    send(Object.fromEntries(steps.map((step, i) => [step.id, step.title + ' · Action ' + (i + 1)])));
+    return;
+  }
   if (system.includes('translate')) {
     const nodes = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
-    response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(nodes) } }] }));
+    send(nodes);
     return;
   }
   modelCalls++;
   const reply = () => {
     if (fixtureMode === 'failure') { response.writeHead(503).end('Fixture model unavailable'); return; }
     const goal = prompt.match(/^Goal: (.*)$/m)?.[1];
-    response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(fixtureTree(goal)) } }] }));
+    send(fixtureTree(goal));
   };
   if (fixtureMode === 'delay') pending.push(reply);
   else reply();
@@ -104,7 +112,7 @@ const provider = createServer(async (request, response) => {
 await new Promise((resolveListen) => provider.listen(0, '127.0.0.1', resolveListen));
 const fixturePort = provider.address().port;
 const env = Object.fromEntries(Object.entries(process.env).filter(([key, value]) => typeof value === 'string' && !key.startsWith('SYA_') && !key.startsWith('OPENAI_') && !key.startsWith('FUNCTION_RUNTIME_') && !['PYTHONPATH', 'ELECTRON_RUN_AS_NODE'].includes(key)));
-Object.assign(env, { PYTHON: python, SYA_SCHEDULER_DATA_DIR: data, SYA_OPENAI_API_KEY: 'fixture-only', SYA_OPENAI_BASE_URL: `http://127.0.0.1:${fixturePort}/v1`, SYA_OPENAI_MODEL: 'local-fixture', SYA_LLM_TIMEOUT_SECONDS: '5', TZ: 'Asia/Shanghai' });
+Object.assign(env, { PYTHON: python, SYA_SCHEDULER_DATA_DIR: data, SYA_SCHEDULER_MODEL_KEY: 'fixture-only', SYA_SCHEDULER_MODEL_BASE_URL: `http://127.0.0.1:${fixturePort}/v1`, SYA_SCHEDULER_MODEL_NAME: 'local-fixture', SYA_LLM_TIMEOUT_SECONDS: '5', TZ: 'Asia/Shanghai' });
 
 function processRows() {
   return execFileSync('ps', ['-axo', 'pid=,ppid=,lstart=,command='], { encoding: 'utf8' }).trim().split('\n').flatMap((line) => {

@@ -10,6 +10,8 @@ FocusFlow remains a **local desktop App** and a **SYA-UI submodule** (`function/
 
 Renderer (`app/static/index.html`, `app.js`, `styles.css`) only uses same-origin fetch/WebSocket. The service exposes only the named static resources. Electron (`desktop/main.cjs`) still spawns `bin/scheduler-server` and waits on `/health`. No new ports, no renderer filesystem access, no credentials in the UI.
 
+The Scheduler service uses its private model profile for goal decomposition, task translation and pending-step previews. The scheduler computes eligible work units and their durations locally. The model supplies action titles for those units. A routine preview can revise multiple projects together, and confirmation writes the reviewed changes in one revision. A failed model preview does not create a draft.
+
 Root contracts stay at the module root so the parent host can register `local-http`:
 
 - `manifest.json` `id=scheduler`, `runtime=local-http`, `entry.command=bin/scheduler-server`

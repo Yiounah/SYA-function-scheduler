@@ -1593,7 +1593,8 @@ function showDraft() {
   if (kind === "routine") {
     const routine = draft.context.body;
     content += `<p class="hint">${escapeHtml(routine.rest || t("restSlotHint"))}</p><details><summary>${escapeHtml(t("affectedDetails"))}</summary><ul>${(draft.affectedTasks || []).map((task) => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul></details>`;
-  } else if (kind === "granularity") {
+  }
+  if (kind === "granularity" || (kind === "routine" && draft.changeSummary?.changes?.length)) {
     const changes = draft.changeSummary?.changes || [];
     content += `<details open><summary>${escapeHtml(t("changesTitle"))}</summary><ol class="change-list">${changes.map((change) => `<li><p class="before">${escapeHtml((change.beforeTitles || []).join(" / "))} · ${change.beforeMinutes} min</p><p>${escapeHtml(t("changeTo"))} → ${escapeHtml((change.afterTitles || []).join(" / "))} · ${change.afterMinutes} min</p></li>`).join("")}</ol></details>`;
     if (draft.tree) content += `<details><summary>${escapeHtml(t("wholeTree"))}</summary><ul class="draft-tree">${draftTreeHtml(draft.tree)}</ul></details>`;
