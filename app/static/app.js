@@ -154,7 +154,14 @@ const COPY = {
     "useModel": "模型生成",
     "useSample": "示例演示（不调用模型）",
     "previewHint": "先检查草案，再确认加入正式计划。",
-    "waitingHint": "生成期间正式计划保持不变，可以随时取消。",
+    "generationStep": "步骤 {step} / 3",
+    "generationElapsed": "已用 {time}",
+    "generationPrepare": "准备请求",
+    "generationPlan": "拆解目标",
+    "generationSample": "生成示例",
+    "generationGrain": "调整步骤",
+    "generationRoutine": "调整作息",
+    "generationPreview": "读取预览",
     "retry": "重试",
     "regenerate": "重新生成",
     "discardDraft": "取消草案",
@@ -400,7 +407,14 @@ const COPY = {
     "useModel": "Generate with model",
     "useSample": "Sample demo (no model call)",
     "previewHint": "Review a draft before adding it to your saved plan.",
-    "waitingHint": "Your saved plan stays unchanged while generating. You can cancel at any time.",
+    "generationStep": "Step {step} of 3",
+    "generationElapsed": "Elapsed {time}",
+    "generationPrepare": "Prepare request",
+    "generationPlan": "Break down goal",
+    "generationSample": "Build sample",
+    "generationGrain": "Resize steps",
+    "generationRoutine": "Adjust routine",
+    "generationPreview": "Read preview",
     "retry": "Retry",
     "regenerate": "Generate again",
     "discardDraft": "Discard draft",
@@ -509,6 +523,7 @@ const state = {
   tree: null,
   ws: null,
   inflight: false,
+  planningModel: "",
   calendarView: "day",
   treeDisclosure: loadTreeDisclosure(),
   treeDisclosureDirty: false,
@@ -821,6 +836,7 @@ async function pullSharedDesk() {
       state.treeDisclosure = desk.treeDisclosure;
       cacheTreeDisclosure();
     }
+    state.planningModel = config.llm?.model || "";
     state.rest = config.rest || "";
     state.appliedGrainTarget = config.todayGrain?.date === ymd(startOfDay(new Date())) ? config.todayGrain.targetMinutes : null;
     for (const [key, [, fallback]] of Object.entries(CYCLE_FIELDS)) state.cycle[key] = Number.isFinite(config[key]) ? config[key] : fallback;
@@ -1429,8 +1445,9 @@ function readableError(error) {
   return known[error.code] ? t(known[error.code]) : error.message;
 }
 
-async function requestJson(path, options = {}) {
+async function requestJson(path, options = {}, onResponse) {
   const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...options.headers } });
+  if (response.ok) onResponse?.();
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload?.ok === false) {
     const error = new Error(payload?.error?.message || (typeof payload?.detail === "string" ? payload.detail : t("planFailed", { status: response.status })));
@@ -1486,6 +1503,19 @@ async function initializePlan(event) {
   });
 }
 
+function setGenerationStep(step) {
+  const track = document.getElementById("generation-steps");
+  const label = t("generationStep", { step });
+  document.getElementById("generation-stage").textContent = label;
+  // Only count completed phases. The model sends the draft in one response.
+  track.setAttribute("aria-valuenow", String(step - 1));
+  track.setAttribute("aria-valuetext", label + " · " + track.children[step - 1].textContent);
+  Array.from(track.children).forEach((segment, index) => {
+    segment.classList.toggle("complete", index < step - 1);
+    segment.classList.toggle("current", index === step - 1);
+  });
+}
+
 async function generateDraft(request) {
   state.generationController?.abort();
   toast.classList.remove("visible");
@@ -1497,13 +1527,33 @@ async function generateDraft(request) {
   setDecomposing(true);
   document.getElementById("generation-error").hidden = true;
   document.getElementById("generation-retry").hidden = true;
-  document.querySelector(".stripe-track").hidden = false;
+  const progress = document.getElementById("generation-progress");
+  const model = document.getElementById("generation-model");
+  const isModelPlan = request.kind === "plan" && !request.body.allowSample;
+  model.textContent = isModelPlan ? state.planningModel : "";
+  model.hidden = !model.textContent;
+  const work = { routine: "generationRoutine", granularity: "generationGrain", plan: isModelPlan ? "generationPlan" : "generationSample" };
+  document.getElementById("generation-work").textContent = t(work[request.kind]);
+  progress.hidden = false;
+  setGenerationStep(1);
+  const started = performance.now();
+  const updateElapsed = () => {
+    const seconds = Math.floor((performance.now() - started) / 1000);
+    const time = [Math.floor(seconds / 60), seconds % 60].map(n => String(n).padStart(2, "0")).join(":");
+    document.getElementById("generation-elapsed").textContent = t("generationElapsed", { time });
+  };
+  updateElapsed();
+  const timer = window.setInterval(updateElapsed, 1000);
+  controller.signal.addEventListener("abort", () => window.clearInterval(timer), { once: true });
   document.getElementById("generation-cancel").focus();
   try {
     // Finish preference writes before the service takes the draft's revision snapshot.
     await saveTreeDisclosure();
     if (token !== state.generationToken || controller.signal.aborted) return;
-    const draft = await requestJson(request.path, { method: "POST", body: JSON.stringify(request.body), signal: controller.signal });
+    setGenerationStep(2);
+    const draft = await requestJson(request.path, { method: "POST", body: JSON.stringify(request.body), signal: controller.signal }, () => {
+      if (token === state.generationToken) setGenerationStep(3);
+    });
     if (token !== state.generationToken) {
       if (draft?.draftId) void requestJson(`/api/scheduler/plans/${encodeURIComponent(draft.draftId)}`, { method: "DELETE" }).catch(() => {});
       return;
@@ -1518,9 +1568,10 @@ async function generateDraft(request) {
     document.getElementById("generation-error").textContent = readableError(error);
     document.getElementById("generation-error").hidden = false;
     document.getElementById("generation-retry").hidden = false;
-    document.querySelector(".stripe-track").hidden = true;
+    progress.hidden = true;
     document.getElementById("generation-retry").focus();
   } finally {
+    window.clearInterval(timer);
     if (token === state.generationToken) {
       state.generationController = null;
       setBusy(false);

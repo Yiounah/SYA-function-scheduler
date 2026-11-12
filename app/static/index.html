@@ -187,13 +187,23 @@
       </form>
     </div>
 
-    <div class="decompose-overlay" id="decompose-overlay" role="dialog" aria-modal="true" aria-labelledby="decompose-label" aria-hidden="true">
-      <div class="decompose-panel">
-        <div class="stripe-track" role="progressbar" aria-labelledby="decompose-label">
-          <div class="stripe-fill"></div>
+    <div class="modal decompose-overlay" id="decompose-overlay" role="dialog" aria-modal="true" aria-labelledby="decompose-label" aria-hidden="true">
+      <div class="modal-card stack generation-card">
+        <header class="generation-heading">
+          <h2 id="decompose-label" aria-live="polite">正在生成草案</h2>
+          <span id="generation-model" class="generation-model" hidden></span>
+        </header>
+        <div id="generation-progress">
+          <div class="generation-meta">
+            <strong id="generation-stage" role="status"></strong>
+            <span id="generation-elapsed" role="timer" aria-live="off"></span>
+          </div>
+          <div class="generation-steps" id="generation-steps" role="progressbar" aria-labelledby="decompose-label" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
+            <span data-i18n="generationPrepare">准备请求</span>
+            <span id="generation-work">拆解目标</span>
+            <span data-i18n="generationPreview">读取预览</span>
+          </div>
         </div>
-        <p id="decompose-label" data-i18n="decomposingNow" aria-live="polite">正在生成草案</p>
-        <p class="hint" data-i18n="waitingHint">生成期间正式计划保持不变，可以随时取消。</p>
         <p class="generation-error" id="generation-error" role="alert" hidden></p>
         <div class="detail-actions">
           <button class="secondary" id="generation-cancel" type="button" data-i18n="cancel">取消</button>

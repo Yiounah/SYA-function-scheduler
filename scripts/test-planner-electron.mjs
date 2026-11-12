@@ -494,6 +494,8 @@ try {
     await page.locator('#grain-target-minutes').fill('20');
     await page.locator('#grain-apply').click();
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+    await expect(page.locator('#generation-stage')).toHaveText('步骤 1 / 3');
+    await expect(page.locator('#generation-work')).toHaveText('调整步骤');
     assert.equal(previewStarted, false, 'preview must await the in-flight disclosure save');
     releaseDisclosure();
     await expectDraft();
@@ -658,6 +660,7 @@ try {
   const countBeforeFailure = (await projects()).length;
   await openPlan('Failure and retry');
   await expect(page.locator('#generation-error')).toBeVisible();
+  await expect(page.locator('#generation-progress')).toBeHidden();
   assert.equal((await projects()).length, countBeforeFailure);
   await screenshot('04-model-failure');
   fixtureMode = 'success';
@@ -672,6 +675,11 @@ try {
   await openPlan('Cancelled while generating');
   await expect(page.locator('#decompose-overlay')).toBeVisible();
   await expect.poll(() => pending.length).toBeGreaterThan(0);
+  await expect(page.locator('#generation-stage')).toHaveText('步骤 2 / 3');
+  await expect(page.locator('#generation-steps')).toHaveAttribute('aria-valuenow', '1');
+  await expect(page.locator('#generation-model')).toHaveText('local-fixture');
+  await expect(page.locator('#generation-elapsed')).not.toHaveText('已用 00:00');
+  await page.locator('.generation-card').screenshot({path: join(evidence, 'generation-progress.png')});
   await page.locator('#generation-cancel').click();
   await expect(page.locator('#decompose-overlay')).not.toBeVisible();
   fixtureMode = 'success';
